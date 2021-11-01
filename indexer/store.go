@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha512"
 	"fmt"
+	"strconv"
 
 	gr "github.com/ac5tin/goredis"
 	"github.com/georgysavva/scany/pgxscan"
@@ -12,13 +13,13 @@ import (
 )
 
 type Post struct {
-	ID        string  `db:"id" json:"id"`
-	Message   string  `db:"message" json:"message"`
-	Title     string  `db:"title" json:"title"`
-	URL       string  `db:"url" json:"url"`
-	Timestamp uint64  `db:"timestamp" json:"timestamp"`
-	Domain    string  `db:"domain" json:"domain"`
-	Score     float32 `db:"score" json:"score"`
+	ID        string             `db:"id" json:"id"`
+	Message   string             `db:"message" json:"message"`
+	Title     string             `db:"title" json:"title"`
+	URL       string             `db:"url" json:"url"`
+	Timestamp uint64             `db:"timestamp" json:"timestamp"`
+	Domain    string             `db:"domain" json:"domain"`
+	Score     map[string]float32 `db:"score" json:"score"`
 }
 
 type Store struct {
@@ -38,24 +39,32 @@ func (s *Store) genPostID(url string) string {
 }
 
 // reverse index
-func (s *Store) getPostIDListFromToken(token string, t *[]string) error {
+func (s *Store) getPostScoreListFromToken(token string, t *map[string]float32) error {
 	rconn := (*s.rc).Get()
 	defer rconn.Close()
-	res, err := redis.Strings((rconn.Do("LRANGE", token, 0, -1)))
+	res, err := redis.StringMap((rconn.Do("HGETALL", token)))
 	if err != nil {
 		return err
 	}
-	*t = res
+	for k, v := range res {
+		f, err := strconv.ParseFloat(v, 32)
+		if err != nil {
+			return err
+		}
+		(*t)[k] = float32(f)
+	}
 	return nil
 }
 
-func (s *Store) addPostLink(token string, url string) error {
+func (s *Store) addPostLink(token string, url string, score float32) error {
 	postID := s.genPostID(url)
 	rconn := (*s.rc).Get()
 	defer rconn.Close()
-	if _, err := rconn.Do("LPUSH", token, postID); err != nil {
+
+	if _, err := rconn.Do("HSET", token, postID, score); err != nil {
 		return err
 	}
+
 	return nil
 }
 
