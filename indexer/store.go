@@ -18,7 +18,7 @@ type Post struct {
 	Title     string             `db:"title" json:"title"`
 	URL       string             `db:"url" json:"url"`
 	Timestamp uint64             `db:"timestamp" json:"timestamp"`
-	Domain    string             `db:"domain" json:"domain"`
+	Site      string             `db:"site" json:"site"`
 	Score     map[string]float32 `db:"score" json:"score"`
 }
 
@@ -76,7 +76,7 @@ func (s *Store) getPostFromPostID(postID string, p *Post) error {
 	}
 	defer conn.Release()
 	if err := pgxscan.Get(context.Background(), conn, p, `
-        SELECT id,message,title,url,timestamp,domain,score
+        SELECT id,message,title,url,timestamp,site,score
         FROM posts
     `); err != nil {
 		return err
@@ -98,9 +98,9 @@ func (s *Store) InsertPost(p *Post) error {
 	defer tx.Rollback(context.Background())
 	if _, err = tx.Exec(context.Background(), `
         INSERT INTO posts
-            (id,message,title,url,timestamp,domain,score)
+            (id,message,title,url,timestamp,site,score)
             VALUES ($1,$2,$3,$4,$5,$6,$7)
-    `, p.ID, p.Message, p.Title, p.URL, p.Timestamp, p.Domain, p.Score); err != nil {
+    `, p.ID, p.Message, p.Title, p.URL, p.Timestamp, p.Site, p.Score); err != nil {
 		tx.Rollback(context.Background())
 		return err
 	}
