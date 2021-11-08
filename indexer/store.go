@@ -113,6 +113,19 @@ func (s *Store) InsertPost(p *Post) error {
         INSERT INTO posts
             (id,author,site,title,url,timestamp,language,summary,tokens,internal_links,external_links,entities)
             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+			ON CONFLICT (id)
+			DO UPDATE SET
+				author = $2,
+				site = $3,
+				title = $4,
+				url = $5,
+				timestamp = $6,
+				language = $7,
+				summary = $8,
+				tokens = $9,
+				internal_links = $10,
+				external_links = $11,
+				entities = $12
     `, s.genPostID(p.URL), p.Author, p.Site, p.Title, p.URL, p.Timestamp, p.Language, p.Summary, p.Tokens, p.InternalLinks, p.ExternalLinks, p.Entities); err != nil {
 		tx.Rollback(context.Background())
 		return err
