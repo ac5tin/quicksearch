@@ -36,7 +36,13 @@ func TestStore(t *testing.T) {
 		ExternalLinks: []string{"https://abc.com"},
 		Entities:      map[string]float32{"testing": 2.1, "test": 11.3},
 	}
+	t.Log("Inserting post")
 	if err := I.Store.InsertPost(&post); err != nil {
+		t.Error(err)
+	}
+
+	t.Log("Deleting post")
+	if err := I.Store.DeletePost("https://example.com"); err != nil {
 		t.Error(err)
 	}
 }

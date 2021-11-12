@@ -70,6 +70,18 @@ func (s *Store) addPostLink(token string, url string) error {
 	return nil
 }
 
+func (s *Store) delPostLink(token, url string) error {
+	postID := s.genPostID(url)
+	rconn := (*s.rc).Get()
+	defer rconn.Close()
+
+	if _, err := rconn.Do("LREM", token, 0, postID); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // get full post data from a post ID
 func (s *Store) getPostFromPostIDs(postID *[]string, p *[]Post) error {
 	conn, err := s.pg.Acquire(context.Background())
@@ -86,11 +98,11 @@ func (s *Store) getPostFromPostIDs(postID *[]string, p *[]Post) error {
 		str += fmt.Sprintf("'%s'", id)
 	}
 
-	if err := pgxscan.Select(context.Background(), conn, p, `
-        SELECT id,title,url,timestamp,site,author,language,summary,tokens,internal_links,external_links,entities
-        FROM posts
-		WHERE id IN (%s)
-    `, str); err != nil {
+	if err := pgxscan.Select(context.Background(), conn, p, fmt.Sprintf(`
+	SELECT id,title,url,timestamp,site,author,language,summary,tokens,internal_links,external_links,entities
+	FROM posts
+	WHERE id IN (%s)
+	`, str)); err != nil {
 		return err
 	}
 
@@ -148,5 +160,43 @@ func (s *Store) InsertPost(p *Post) error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (s *Store) DeletePost(url string) error {
+	posts := new([]Post)
+	if err := s.getPostFromPostIDs(&[]string{s.genPostID(url)}, posts); err != nil {
+		return err
+	}
+	for _, p := range *posts {
+		// remove from redis
+		for t := range p.Tokens {
+			s.delPostLink(t, p.URL)
+		}
+		for t := range p.Entities {
+			s.delPostLink(t, p.URL)
+		}
+
+	}
+
+	conn, err := s.pg.Acquire(context.Background())
+	if err != nil {
+		return err
+	}
+
+	defer conn.Release()
+	tx, err := conn.Begin(context.Background())
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(context.Background())
+	if _, err := tx.Exec(context.Background(), `
+		DELETE FROM posts
+		WHERE id = $1
+	`, s.genPostID(url)); err != nil {
+		tx.Rollback(context.Background())
+		return err
+	}
+
 	return nil
 }
