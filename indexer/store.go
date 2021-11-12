@@ -133,5 +133,20 @@ func (s *Store) InsertPost(p *Post) error {
 	if err := tx.Commit(context.Background()); err != nil {
 		return err
 	}
+
+	tokens := make(map[string]interface{})
+	for k := range p.Tokens {
+		tokens[k] = struct{}{}
+	}
+	for k := range p.Entities {
+		tokens[k] = struct{}{}
+	}
+
+	for k := range tokens {
+		if err := s.addPostLink(k, p.URL); err != nil {
+			tx.Rollback(context.Background())
+			return err
+		}
+	}
 	return nil
 }
