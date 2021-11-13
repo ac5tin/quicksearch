@@ -198,5 +198,9 @@ func (s *Store) DeletePost(url string) error {
 		return err
 	}
 
+	if err := tx.Commit(context.Background()); err != nil {
+		return err
+	}
+
 	return nil
 }
