@@ -13,17 +13,16 @@ func insertPost(c *fiber.Ctx) error {
 			"ok":    false,
 			"error": err.Error(),
 		})
+	}
 
-		for _, p := range *posts {
-			if err := indexer.I.Store.InsertPost(&p); err != nil {
-				c.Status(fiber.ErrInternalServerError.Code).JSON(fiber.Map{
-					"ok":    false,
-					"error": err.Error(),
-				})
-				return nil
-			}
+	for _, p := range *posts {
+		if err := indexer.I.Store.InsertPost(&p); err != nil {
+			c.Status(fiber.ErrInternalServerError.Code).JSON(fiber.Map{
+				"ok":    false,
+				"error": err.Error(),
+			})
+			return nil
 		}
-		return nil
 	}
 
 	// all done
