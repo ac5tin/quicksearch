@@ -42,6 +42,8 @@ func main() {
 	port := flag.Uint("p", 7898, "Port number")
 	prefork := flag.Bool("prefork", false, "Prefork")
 
+	flag.Parse()
+
 	app := fiber.New(fiber.Config{
 		Prefork: *prefork,
 	})

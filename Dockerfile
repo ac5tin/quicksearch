@@ -9,4 +9,4 @@ RUN chmod +x app
 
 FROM alpine
 COPY --from=builder /app/bin/app ./app
-CMD ./app -addr $PORT
+CMD ./app -p $PORT -prefork
