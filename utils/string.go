@@ -1,7 +1,7 @@
 package utils
 
-func TruncateString(input *string, max *uint16) {
-	if uint16(len(*input)) > *max {
+func TruncateString(input *string, max *uint32) {
+	if uint32(len(*input)) > *max {
 		*input = (*input)[0:*max]
 	}
 }
