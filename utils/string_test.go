@@ -4,7 +4,7 @@ import "testing"
 
 func TestTruncateString(t *testing.T) {
 	input := "Hello world!"
-	var max uint16 = 5
+	var max uint32 = 5
 	TruncateString(&input, &max)
 	t.Logf("Truncated string into: %s", input)
 	if len(input) != 5 {
