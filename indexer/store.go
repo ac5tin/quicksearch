@@ -204,3 +204,37 @@ func (s *Store) DeletePost(url string) error {
 
 	return nil
 }
+
+// Full reeset store
+func (s *Store) Reset() error {
+	rconn := (*s.rc).Get()
+	defer rconn.Close()
+
+	if _, err := rconn.Do("FLUSHALL"); err != nil {
+		return err
+	}
+
+	conn, err := s.pg.Acquire(context.Background())
+	if err != nil {
+		return err
+	}
+
+	defer conn.Release()
+	tx, err := conn.Begin(context.Background())
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(context.Background())
+	if _, err := tx.Exec(context.Background(), `
+		DELETE FROM posts
+	`); err != nil {
+		tx.Rollback(context.Background())
+		return err
+	}
+
+	if err := tx.Commit(context.Background()); err != nil {
+		return err
+	}
+
+	return nil
+}
