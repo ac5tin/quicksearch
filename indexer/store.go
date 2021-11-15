@@ -93,7 +93,7 @@ func (s *Store) getPostFromPostIDs(postID *[]string, p *[]Post) error {
 
 	str := ""
 	for i, id := range *postID {
-		if i > 0 && i < len(*postID)-1 {
+		if i > 0 && i <= len(*postID)-1 {
 			str += ","
 		}
 		str += fmt.Sprintf("'%s'", id)
