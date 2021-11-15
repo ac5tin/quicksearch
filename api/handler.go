@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log"
 	"quicksearch/indexer"
 
 	"github.com/gofiber/fiber/v2"
@@ -17,6 +18,7 @@ func insertPost(c *fiber.Ctx) error {
 
 	for _, p := range *posts {
 		if err := indexer.I.Store.InsertPost(&p); err != nil {
+			log.Printf("Error: %s", err.Error())
 			c.Status(fiber.ErrInternalServerError.Code).JSON(fiber.Map{
 				"ok":    false,
 				"error": err.Error(),
