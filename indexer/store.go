@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha512"
 	"fmt"
+	"quicksearch/utils"
 
 	gr "github.com/ac5tin/goredis"
 	"github.com/georgysavva/scany/pgxscan"
@@ -121,6 +122,11 @@ func (s *Store) InsertPost(p *Post) error {
 		return err
 	}
 	defer tx.Rollback(context.Background())
+
+	var max_str_len uint32 = 65536
+	utils.TruncateString(&p.Title, &max_str_len)
+	utils.TruncateString(&p.Summary, &max_str_len)
+
 	if _, err = tx.Exec(context.Background(), `
         INSERT INTO posts
             (id,author,site,title,url,timestamp,language,summary,tokens,internal_links,external_links,entities)
