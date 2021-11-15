@@ -123,9 +123,9 @@ func (s *Store) InsertPost(p *Post) error {
 	}
 	defer tx.Rollback(context.Background())
 
-	var max_str_len uint32 = 65536
+	var max_str_len uint32 = 255
 	utils.TruncateString(&p.Title, &max_str_len)
-	utils.TruncateString(&p.Summary, &max_str_len)
+	utils.TruncateString(&p.Author, &max_str_len)
 
 	if _, err = tx.Exec(context.Background(), `
         INSERT INTO posts
