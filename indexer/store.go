@@ -232,6 +232,13 @@ func (s *Store) Reset() error {
 		return err
 	}
 
+	if _, err := tx.Exec(context.Background(), `
+		DELETE FROM sites
+	`); err != nil {
+		tx.Rollback(context.Background())
+		return err
+	}
+
 	if err := tx.Commit(context.Background()); err != nil {
 		return err
 	}
