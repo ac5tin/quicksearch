@@ -63,3 +63,20 @@ func TestResetStore(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestRemovePost(t *testing.T) {
+	godotenv.Load("../.env")
+	// setup store
+	pg, err := db.Db(os.Getenv("DB_STRING"), os.Getenv("DB_SCHEMA"))
+	if err != nil {
+		t.Error(err)
+	}
+	rc := gr.NewRedisClient(fmt.Sprintf("%s:%s", os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT")), 0, "")
+	s := NewStore(rc, pg)
+	I = new(Indexer)
+	I.Store = &s
+
+	if errr := I.Store.DeletePost("https://www.fasta.ai"); err != nil {
+		t.Error(errr)
+	}
+}

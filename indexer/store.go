@@ -104,7 +104,7 @@ func (s *Store) getPostFromPostIDs(postID *[]string, p *[]Post) error {
 	}
 
 	if err := pgxscan.Select(context.Background(), conn, p, fmt.Sprintf(`
-	SELECT id,title,url,timestamp,site,author,language,summary,tokens,tokens_h,internal_links,external_links,entities
+	SELECT id,title,url,timestamp,site,author,language,summary,tokens,tokens_h,internal_links,external_links,entities,external_site_scores
 	FROM posts
 	WHERE id IN (%s)
 	`, str)); err != nil {
@@ -126,10 +126,12 @@ func (s *Store) InsertPost(p *Post) error {
 			return err
 		}
 		if *selfScore == 0 {
+			// first time we see this site, init
 			*selfScore = 0.1
 			if err := s.upsertSiteScore(&p.Site, selfScore); err != nil {
 				return err
 			}
+			p.ExternalSiteScores[p.Site] = *selfScore
 		}
 
 		addScore := *selfScore*0.1 + 0.1
@@ -275,15 +277,29 @@ func (s *Store) DeletePost(url string) error {
 	if err := s.getPostFromPostIDs(&[]string{s.genPostID(url)}, posts); err != nil {
 		return err
 	}
-	for _, p := range *posts {
-		// remove from redis
-		for t := range p.Tokens {
-			s.delPostLink(t, p.URL)
-		}
-		for t := range p.Entities {
-			s.delPostLink(t, p.URL)
-		}
+	// cleanup , reset scores
+	{
+		for _, p := range *posts {
+			// remove from redis
+			for t := range p.Tokens {
+				s.delPostLink(t, p.URL)
+			}
+			for t := range p.Entities {
+				s.delPostLink(t, p.URL)
+			}
+			// subtract from site scores
+			for k, v := range p.ExternalSiteScores {
+				score := new(float32)
+				if err := s.getSiteScore(&k, score); err != nil {
+					return err
+				}
+				*score -= v
+				if err := s.upsertSiteScore(&k, score); err != nil {
+					return err
+				}
+			}
 
+		}
 	}
 
 	conn, err := s.pg.Acquire(context.Background())
