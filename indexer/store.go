@@ -28,6 +28,8 @@ type Post struct {
 	InternalLinks []string           `db:"internal_links" json:"internal_links"`
 	ExternalLinks []string           `db:"external_links" json:"external_links"`
 	Entities      map[string]float32 `db:"entities" json:"entities"`
+	// logging down scores added to external sites
+	ExternalSiteScores map[string]float32 `db:"external_site_scores"`
 }
 
 type Store struct {
@@ -114,6 +116,55 @@ func (s *Store) getPostFromPostIDs(postID *[]string, p *[]Post) error {
 
 // insert (index) a post to store (redis and postgres)
 func (s *Store) InsertPost(p *Post) error {
+	// handle external and internal links
+	{
+		p.ExternalSiteScores = make(map[string]float32)
+		// - if self.site no score then set self.site.score = 0.1
+		// - each external link.score += self.site.score * 0.1  + 0.1 // max cap = 1
+		selfScore := new(float32)
+		if err := s.getSiteScore(&p.Site, selfScore); err != nil {
+			return err
+		}
+		if *selfScore == 0 {
+			*selfScore = 0.1
+			if err := s.upsertSiteScore(&p.Site, selfScore); err != nil {
+				return err
+			}
+		}
+
+		addScore := *selfScore*0.1 + 0.1
+		if addScore > 1 {
+			addScore = 1
+		}
+
+		// dedupe host
+		hosts := make(map[string]interface{})
+		for _, link := range p.ExternalLinks {
+			u, err := url.Parse(link)
+			if err != nil {
+				return err
+			}
+			if _, ok := hosts[u.Host]; ok {
+				continue
+			} else {
+				hosts[u.Host] = struct{}{}
+			}
+
+			score := new(float32)
+			if err := s.getSiteScore(&u.Host, score); err != nil {
+				return err
+			}
+			*score += addScore
+			if err := s.upsertSiteScore(&u.Host, score); err != nil {
+				return err
+			}
+			// external site scores
+			p.ExternalSiteScores[u.Host] = addScore
+
+		}
+		hosts = nil // gc
+	}
+
 	conn, err := s.pg.Acquire(context.Background())
 	if err != nil {
 		return err
@@ -131,8 +182,8 @@ func (s *Store) InsertPost(p *Post) error {
 
 	if _, err = tx.Exec(context.Background(), `
         INSERT INTO posts
-            (id,author,site,title,url,timestamp,language,summary,tokens,internal_links,external_links,entities)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+            (id,author,site,title,url,timestamp,language,summary,tokens,internal_links,external_links,entities,external_site_scores)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
 			ON CONFLICT (id)
 			DO UPDATE SET
 				author = $2,
@@ -145,8 +196,9 @@ func (s *Store) InsertPost(p *Post) error {
 				tokens = $9,
 				internal_links = $10,
 				external_links = $11,
-				entities = $12
-    `, s.genPostID(p.URL), p.Author, p.Site, p.Title, p.URL, p.Timestamp, p.Language, p.Summary, p.Tokens, p.InternalLinks, p.ExternalLinks, p.Entities); err != nil {
+				entities = $12,
+				external_site_scores = $13
+    `, s.genPostID(p.URL), p.Author, p.Site, p.Title, p.URL, p.Timestamp, p.Language, p.Summary, p.Tokens, p.InternalLinks, p.ExternalLinks, p.Entities, p.ExternalSiteScores); err != nil {
 		tx.Rollback(context.Background())
 		return err
 	}
@@ -168,50 +220,6 @@ func (s *Store) InsertPost(p *Post) error {
 			return err
 		}
 	}
-
-	// handle external and internal links
-	// - if self.site no score then set self.site.score = 0.1
-	// - each external link.score += self.site.score * 0.1  + 0.1 // max cap = 1
-	selfScore := new(float32)
-	if err := s.getSiteScore(&p.Site, selfScore); err != nil {
-		return err
-	}
-	if *selfScore == 0 {
-		*selfScore = 0.1
-		if err := s.upsertSiteScore(&p.Site, selfScore); err != nil {
-			return err
-		}
-	}
-
-	addScore := *selfScore*0.1 + 0.1
-	if addScore > 1 {
-		addScore = 1
-	}
-
-	// dedupe host
-	hosts := make(map[string]interface{})
-	for _, link := range p.ExternalLinks {
-		u, err := url.Parse(link)
-		if err != nil {
-			return err
-		}
-		if _, ok := hosts[u.Host]; ok {
-			continue
-		} else {
-			hosts[u.Host] = struct{}{}
-		}
-
-		score := new(float32)
-		if err := s.getSiteScore(&u.Host, score); err != nil {
-			return err
-		}
-		*score += addScore
-		if err := s.upsertSiteScore(&u.Host, score); err != nil {
-			return err
-		}
-
-	}
-	hosts = nil // gc
 
 	return nil
 }
