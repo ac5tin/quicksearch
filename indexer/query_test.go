@@ -34,7 +34,7 @@ func TestQuery(t *testing.T) {
 	t.Logf("Number of results: %d", len(*posts))
 
 	for _, p := range *posts {
-		t.Logf("%s: %s", p.ID, p.Title)
+		t.Logf("%s", p.URL)
 	}
 }
 
