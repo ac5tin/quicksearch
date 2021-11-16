@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha512"
 	"fmt"
+	"net/url"
 	"quicksearch/utils"
 
 	gr "github.com/ac5tin/goredis"
@@ -167,6 +168,89 @@ func (s *Store) InsertPost(p *Post) error {
 			return err
 		}
 	}
+
+	// handle external and internal links
+	// - if self.site no score then set self.site.score = 0.1
+	// - each external link.score += self.site.score * 0.1  + 0.1 // max cap = 1
+	selfScore := new(float32)
+	if err := s.getSiteScore(&p.Site, selfScore); err != nil {
+		return err
+	}
+	if *selfScore == 0 {
+		*selfScore = 0.1
+		if err := s.upsertSiteScore(&p.Site, selfScore); err != nil {
+			return err
+		}
+	}
+
+	addScore := *selfScore*0.1 + 0.1
+	if addScore > 1 {
+		addScore = 1
+	}
+
+	for _, link := range p.ExternalLinks {
+		u, err := url.Parse(link)
+		if err != nil {
+			return err
+		}
+
+		score := new(float32)
+		if err := s.getSiteScore(&u.Host, score); err != nil {
+			return err
+		}
+		*score += addScore
+		if err := s.upsertSiteScore(&u.Host, score); err != nil {
+			return err
+		}
+
+	}
+
+	return nil
+}
+
+func (s *Store) upsertSiteScore(site *string, score *float32) error {
+	conn, err := s.pg.Acquire(context.Background())
+	if err != nil {
+		return err
+	}
+	defer conn.Release()
+	tx, err := conn.Begin(context.Background())
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(context.Background())
+	if _, err := tx.Exec(context.Background(), `
+		INSERT INTO sites (site, score) VALUES ($1, $2)
+		ON CONFLICT (site) DO UPDATE SET score = $2
+	`, *site, *score); err != nil {
+		return err
+	}
+	if err := tx.Commit(context.Background()); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Store) getSiteScore(site *string, score *float32) error {
+	conn, err := s.pg.Acquire(context.Background())
+	if err != nil {
+		return err
+	}
+	defer conn.Release()
+
+	scores := new([]float32)
+	if err := pgxscan.Select(context.Background(), conn, scores, `
+		SELECT score FROM sites WHERE site = $1
+	`, *site); err != nil {
+		return err
+	}
+
+	if len(*scores) == 0 {
+		*score = 0
+		return nil
+	}
+
+	*score = (*scores)[0]
 	return nil
 }
 
