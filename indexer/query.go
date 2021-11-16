@@ -3,6 +3,7 @@ package indexer
 import (
 	"quicksearch/textprocessor"
 	"sort"
+	"time"
 )
 
 func (ind *Indexer) QueryFullText(qry string, num, offset uint32, t *[]Post) error {
@@ -40,11 +41,23 @@ func (ind *Indexer) QueryFullText(qry string, num, offset uint32, t *[]Post) err
 			var score float32 = 0.0
 			if s, ok := postMap[p.ID]; ok {
 				score = s.score
+			} else {
+				// first time we see this post
+				// add site score and timestamp score
+				// - site score from db
+				// - timestamp score = 1.0 / (1.0 + (timestamp - now) / (24 * 60 * 60))
+				if p.Timestamp == 0 {
+					p.Timestamp = uint64(time.Now().Unix() - 604800) // 1 week ago
+				}
+
+				tsScore := float32(1.0 / float64(1.0+float64(int64(p.Timestamp-uint64(time.Now().Unix())))/float64(24*60*60)))
+				score += tsScore * TIME_MULTIPLIER
 			}
-
-			score += token.Score + 10.0
+			if h, ok := p.TokensH[token.Token]; ok {
+				score += h
+			}
+			score += p.Tokens[token.Token] + MATCH_MULTIPLIER
 			postMap[p.ID] = &post{p, score}
-
 		}
 	}
 	for _, p := range postMap {
@@ -61,6 +74,7 @@ func (ind *Indexer) QueryFullText(qry string, num, offset uint32, t *[]Post) err
 	}
 
 	for _, p := range *allPosts {
+		// log.Println(p.URL, p.score) // debug (print score)
 		*t = append(*t, p.Post)
 	}
 
