@@ -188,10 +188,17 @@ func (s *Store) InsertPost(p *Post) error {
 		addScore = 1
 	}
 
+	// dedupe host
+	hosts := make(map[string]interface{})
 	for _, link := range p.ExternalLinks {
 		u, err := url.Parse(link)
 		if err != nil {
 			return err
+		}
+		if _, ok := hosts[u.Host]; ok {
+			continue
+		} else {
+			hosts[u.Host] = struct{}{}
 		}
 
 		score := new(float32)
@@ -204,6 +211,7 @@ func (s *Store) InsertPost(p *Post) error {
 		}
 
 	}
+	hosts = nil // gc
 
 	return nil
 }
