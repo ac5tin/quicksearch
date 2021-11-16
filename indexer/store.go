@@ -116,6 +116,39 @@ func (s *Store) getPostFromPostIDs(postID *[]string, p *[]Post) error {
 
 // insert (index) a post to store (redis and postgres)
 func (s *Store) InsertPost(p *Post) error {
+	// check if already exist
+	update := false
+	posts := new([]Post)
+	if err := s.getPostFromPostIDs(&[]string{s.genPostID(p.URL)}, posts); err != nil {
+		return err
+	}
+	if len(*posts) > 0 {
+		update = true
+	}
+	// handle update
+	{
+		if update {
+			post := (*posts)[0]
+			// remove from redis
+			for t := range post.Tokens {
+				s.delPostLink(t, post.URL)
+			}
+			for t := range post.Entities {
+				s.delPostLink(t, post.URL)
+			}
+			// subtract from site scores
+			for k, v := range post.ExternalSiteScores {
+				score := new(float32)
+				if err := s.getSiteScore(&k, score); err != nil {
+					return err
+				}
+				*score -= v
+				if err := s.upsertSiteScore(&k, score); err != nil {
+					return err
+				}
+			}
+		}
+	}
 	// handle external and internal links
 	{
 		p.ExternalSiteScores = make(map[string]float32)
