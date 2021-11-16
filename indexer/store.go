@@ -19,6 +19,7 @@ type Post struct {
 	Site          string             `db:"site" json:"site"`
 	Title         string             `db:"title" json:"title"`
 	Tokens        map[string]float32 `db:"tokens" json:"tokens"`
+	TokensH       map[string]float32 `db:"tokens_h" json:"tokens_h"`
 	Summary       string             `db:"summary" json:"summary"`
 	URL           string             `db:"url" json:"url"`
 	Timestamp     uint64             `db:"timestamp" json:"timestamp"`
@@ -100,7 +101,7 @@ func (s *Store) getPostFromPostIDs(postID *[]string, p *[]Post) error {
 	}
 
 	if err := pgxscan.Select(context.Background(), conn, p, fmt.Sprintf(`
-	SELECT id,title,url,timestamp,site,author,language,summary,tokens,internal_links,external_links,entities
+	SELECT id,title,url,timestamp,site,author,language,summary,tokens,tokens_h,internal_links,external_links,entities
 	FROM posts
 	WHERE id IN (%s)
 	`, str)); err != nil {
