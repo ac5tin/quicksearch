@@ -1,9 +1,13 @@
 package indexer
 
 import (
+	"context"
+	"log"
 	"quicksearch/textprocessor"
 	"sort"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 func (ind *Indexer) QueryFullText(qry string, num, offset uint32, t *[]Post) error {
@@ -29,36 +33,52 @@ func (ind *Indexer) QueryFullText(qry string, num, offset uint32, t *[]Post) err
 	}
 	allPosts := new([]post)
 	postMap := make(map[string]*post) // post for each postID
-	// -- use loop instead of parallelism to reduce store i/o
-	for _, token := range *tokens {
-		posts := new([]Post)
-		if err := ind.QueryToken(token.Token, posts); err != nil {
-			return err
-		}
-		tokenMap[&token] = posts
-		for _, p := range *posts {
-			// -- post score = token score + token heuristics + site score + timestamp score + matches
-			var score float32 = 0.0
-			if s, ok := postMap[p.ID]; ok {
-				score = s.score
-			} else {
-				// first time we see this post
-				// add site score and timestamp score
-				// - site score from db
-				// - timestamp score = 1.0 / (1.0 + (timestamp - now) / (24 * 60 * 60))
-				if p.Timestamp == 0 {
-					p.Timestamp = uint64(time.Now().Unix() - 604800) // 1 week ago
-				}
 
-				tsScore := float32(1.0 / float64(1.0+float64(int64(p.Timestamp-uint64(time.Now().Unix())))/float64(24*60*60)))
-				score += tsScore * TIME_MULTIPLIER
+	// -- use parallelism to speed up query process
+	g, ctx := errgroup.WithContext(context.Background())
+	for _, token := range *tokens {
+		t := token
+		g.Go(func() error {
+			select {
+			case <-ctx.Done():
+				log.Println("Error occured in another goroutine")
+				return nil
+			default:
+				// dont block
 			}
-			if h, ok := p.TokensH[token.Token]; ok {
-				score += h
+			posts := new([]Post)
+			if err := ind.QueryToken(t.Token, posts); err != nil {
+				return err
 			}
-			score += p.Tokens[token.Token] + MATCH_MULTIPLIER
-			postMap[p.ID] = &post{p, score}
-		}
+			tokenMap[&t] = posts
+			for _, p := range *posts {
+				// -- post score = token score + token heuristics + site score + timestamp score + matches
+				var score float32 = 0.0
+				if s, ok := postMap[p.ID]; ok {
+					score = s.score
+				} else {
+					// first time we see this post
+					// add site score and timestamp score
+					// - site score from db
+					// - timestamp score = 1.0 / (1.0 + (timestamp - now) / (24 * 60 * 60))
+					if p.Timestamp == 0 {
+						p.Timestamp = uint64(time.Now().Unix() - 604800) // 1 week ago
+					}
+
+					tsScore := float32(1.0 / float64(1.0+float64(int64(p.Timestamp-uint64(time.Now().Unix())))/float64(24*60*60)))
+					score += tsScore * TIME_MULTIPLIER
+				}
+				if h, ok := p.TokensH[t.Token]; ok {
+					score += h
+				}
+				score += p.Tokens[t.Token] + MATCH_MULTIPLIER
+				postMap[p.ID] = &post{p, score}
+			}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return err
 	}
 	for _, p := range postMap {
 		*allPosts = append(*allPosts, *p)
