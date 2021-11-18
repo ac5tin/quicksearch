@@ -401,3 +401,31 @@ func (s *Store) Reset() error {
 
 	return nil
 }
+
+func (s *Store) getAllPosts(posts *[]Post) error {
+	conn, err := s.pg.Acquire(context.Background())
+	if err != nil {
+		return err
+	}
+	defer conn.Release()
+
+	if err := pgxscan.Select(context.Background(), conn, posts, `
+	SELECT id,title,url,timestamp,site,author,language,summary,tokens,tokens_h,internal_links,external_links,entities,external_site_scores
+	FROM posts
+	`); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Store) ResetReverseIndexStore() error {
+	rconn := (*s.rc).Get()
+	defer rconn.Close()
+
+	if _, err := rconn.Do("FLUSHALL"); err != nil {
+		return err
+	}
+
+	return nil
+}
