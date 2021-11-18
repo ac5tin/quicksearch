@@ -39,11 +39,56 @@ func deletePost(c *fiber.Ctx) error {
 }
 
 func query(c *fiber.Ctx) error {
+	type inp struct {
+		Query  string `json:"query"`
+		Limit  uint32 `json:"limit"`
+		Offset uint32 `json:"offset"`
+	}
+	input := new(inp)
+
+	if err := c.BodyParser(input); err != nil {
+		c.Status(fiber.ErrBadRequest.Code).JSON(fiber.Map{
+			"ok":    false,
+			"error": err.Error(),
+		})
+		return nil
+	}
+
+	posts := new([]indexer.Post)
+	if err := indexer.I.QueryFullText(input.Query, input.Limit, input.Offset, posts); err != nil {
+		c.Status(fiber.ErrInternalServerError.Code).JSON(fiber.Map{
+			"ok":    false,
+			"error": err.Error(),
+		})
+	}
+
+	// all done
+	c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"ok":    true,
+		"posts": *posts,
+	})
+
 	return nil
 }
 
 func reset(c *fiber.Ctx) error {
 	if err := indexer.I.Store.Reset(); err != nil {
+		c.Status(fiber.ErrInternalServerError.Code).JSON(fiber.Map{
+			"ok":    false,
+			"error": err.Error(),
+		})
+		return nil
+	}
+
+	// all done
+	c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"ok": true,
+	})
+	return nil
+}
+
+func sync(c *fiber.Ctx) error {
+	if err := indexer.I.Store.Sync(); err != nil {
 		c.Status(fiber.ErrInternalServerError.Code).JSON(fiber.Map{
 			"ok":    false,
 			"error": err.Error(),
