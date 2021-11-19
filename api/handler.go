@@ -1,14 +1,14 @@
 package api
 
 import (
-	"log"
 	"quicksearch/indexer"
+	"quicksearch/processor"
 
 	"github.com/gofiber/fiber/v2"
 )
 
 func insertPost(c *fiber.Ctx) error {
-	posts := new([]indexer.Post)
+	posts := new([]processor.Results)
 	if err := c.BodyParser(posts); err != nil {
 		c.Status(fiber.ErrBadRequest.Code).JSON(fiber.Map{
 			"ok":    false,
@@ -16,15 +16,8 @@ func insertPost(c *fiber.Ctx) error {
 		})
 	}
 
-	for _, p := range *posts {
-		if err := indexer.I.Store.InsertPost(&p); err != nil {
-			log.Printf("Error: %s", err.Error())
-			c.Status(fiber.ErrInternalServerError.Code).JSON(fiber.Map{
-				"ok":    false,
-				"error": err.Error(),
-			})
-			return nil
-		}
+	for _, post := range *posts {
+		processor.QChan <- &post
 	}
 
 	// all done

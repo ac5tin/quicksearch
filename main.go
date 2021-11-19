@@ -8,6 +8,7 @@ import (
 	"quicksearch/api"
 	"quicksearch/db"
 	"quicksearch/indexer"
+	"quicksearch/processor"
 
 	gr "github.com/ac5tin/goredis"
 	"github.com/gofiber/fiber/v2"
@@ -37,6 +38,9 @@ func main() {
 	s := indexer.NewStore(rc, pg)
 	indexer.I = new(indexer.Indexer)
 	indexer.I.Store = &s
+
+	// ----- process queue
+	go processor.ProcessQueue()
 
 	// start REST  API server
 	port := flag.Uint("p", 7898, "Port number")
