@@ -33,6 +33,7 @@ func (ind *Indexer) QueryFullText(qry string, num, offset uint32, t *[]Post) err
 	}
 	allPosts := new([]post)
 	postMap := make(map[string]*post) // post for each postID
+	postMatches := make(map[string]uint32)
 
 	// -- use parallelism to speed up query process
 	g, ctx := errgroup.WithContext(context.Background())
@@ -51,6 +52,7 @@ func (ind *Indexer) QueryFullText(qry string, num, offset uint32, t *[]Post) err
 				return err
 			}
 			tokenMap[&t] = posts
+
 			for _, p := range *posts {
 				// -- post score = token score + token heuristics + site score + timestamp score + matches
 				var score float32 = 0.0
@@ -71,7 +73,14 @@ func (ind *Indexer) QueryFullText(qry string, num, offset uint32, t *[]Post) err
 				if h, ok := p.TokensH[t.Token]; ok {
 					score += h
 				}
-				score += p.Tokens[t.Token] + MATCH_MULTIPLIER
+				score += p.Tokens[t.Token]
+
+				if v, ok := postMatches[p.ID]; ok {
+					postMatches[p.ID] = v + 1
+				} else {
+					postMatches[p.ID] = 1
+				}
+				score *= float32(postMatches[p.ID]) * MATCH_MULTIPLIER
 				postMap[p.ID] = &post{p, score}
 			}
 			return nil
@@ -94,7 +103,7 @@ func (ind *Indexer) QueryFullText(qry string, num, offset uint32, t *[]Post) err
 	}
 
 	for _, p := range *allPosts {
-		// log.Println(p.URL, p.score) // debug (print score)
+		log.Println(p.URL, p.score) // debug (print score)
 		*t = append(*t, p.Post)
 	}
 
