@@ -10,6 +10,7 @@ import (
 
 const TITLE_MULTIPLIER = 25.0
 const SUMMARY_MULTIPLIER = 10.5
+const AUTHOR_MULTIPLIER = 7.5
 
 func processPostResults(r *Results) error {
 	// ======== HANDLE SITE TOKEN ========
@@ -26,17 +27,20 @@ func processPostResults(r *Results) error {
 	tokens := new([]textprocessor.Token)
 	titleTokens := new([]textprocessor.Token)
 	summaryTokens := new([]textprocessor.Token)
+	authorToken := new([]textprocessor.Token)
 
 	everything := textprocessor.InputText{Text: fmt.Sprintf("_ %s", text), Lang: r.Lang}
 	title := textprocessor.InputText{Text: fmt.Sprintf("_ %s", r.Title), Lang: r.Lang}
 	summary := textprocessor.InputText{Text: fmt.Sprintf("_ %s", r.Summary), Lang: r.Lang}
-	if err := tp.TokeniseMulti(&[]textprocessor.InputText{everything, title, summary}, allTokens); err != nil {
+	author := textprocessor.InputText{Text: fmt.Sprintf("_ %s", r.Author), Lang: r.Lang}
+	if err := tp.TokeniseMulti(&[]textprocessor.InputText{everything, title, summary, author}, allTokens); err != nil {
 		return err
 	}
 
 	*tokens = (*allTokens)[0]
 	*titleTokens = (*allTokens)[1]
 	*summaryTokens = (*allTokens)[2]
+	*authorToken = (*allTokens)[3]
 
 	// entities
 	ents := new([]string)
@@ -60,6 +64,11 @@ func processPostResults(r *Results) error {
 	// little extra for summary
 	for _, tk := range *summaryTokens {
 		tkMap[tk.Token] += tk.Score * SUMMARY_MULTIPLIER
+	}
+
+	// little extra for author
+	for _, tk := range *authorToken {
+		tkMap[tk.Token] += tk.Score * AUTHOR_MULTIPLIER
 	}
 
 	// assign each entity with token score of 2
