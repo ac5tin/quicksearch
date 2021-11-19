@@ -103,7 +103,7 @@ func (ind *Indexer) QueryFullText(qry string, num, offset uint32, t *[]Post) err
 	}
 
 	for _, p := range *allPosts {
-		log.Println(p.URL, p.score) // debug (print score)
+		//log.Println(p.URL, p.score) // debug (print score)
 		*t = append(*t, p.Post)
 	}
 
