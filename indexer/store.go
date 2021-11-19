@@ -160,16 +160,16 @@ func (s *Store) InsertPost(p *Post) error {
 		}
 		if *selfScore == 0 {
 			// first time we see this site, init
-			*selfScore = 0.1
+			*selfScore = SITE_MULTIPLIER
 			if err := s.upsertSiteScore(&p.Site, selfScore); err != nil {
 				return err
 			}
 			p.ExternalSiteScores[p.Site] = *selfScore
 		}
 
-		addScore := *selfScore*0.1 + 0.1
-		if addScore > 1 {
-			addScore = 1
+		addScore := *selfScore*SITE_MULTIPLIER + SITE_MULTIPLIER
+		if addScore > (SITE_MULTIPLIER * 10) {
+			addScore = (SITE_MULTIPLIER * 10)
 		}
 
 		// dedupe host
