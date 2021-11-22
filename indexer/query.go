@@ -10,18 +10,13 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func (ind *Indexer) QueryFullText(qry, language string, num, offset uint32, t *[]Post) error {
+func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Post) error {
 	// TODO
 	// - tokenise
 	tp := new(textprocessor.TextProcessor)
 
-	lang := new(string)
-	if err := tp.LangDetect(qry, lang); err != nil {
-		return err
-	}
-
 	tokens := new([]textprocessor.Token)
-	if err := tp.Tokenise(textprocessor.InputText{Lang: *lang, Text: qry}, tokens); err != nil {
+	if err := tp.Tokenise(textprocessor.InputText{Lang: *lang, Text: *qry}, tokens); err != nil {
 		return err
 	}
 	// - get URLs per token
@@ -83,9 +78,10 @@ func (ind *Indexer) QueryFullText(qry, language string, num, offset uint32, t *[
 				score *= float32(postMatches[p.ID]) * MATCH_MULTIPLIER
 
 				// language score
-				if *lang == language {
+				if *lang == p.Language {
 					score *= LANGUAGE_MULTIPLIER
 				}
+
 				postMap[p.ID] = &post{p, score}
 			}
 			return nil

@@ -23,7 +23,10 @@ func TestQuery(t *testing.T) {
 	I.Store = &s
 
 	posts := new([]Post)
-	if err := I.QueryFullText("a.i data science", "en", 10, 0, posts); err != nil {
+
+	qry := "a.i data science"
+	lang := "en"
+	if err := I.QueryFullText(&qry, &lang, 10, 0, posts); err != nil {
 		t.Error(err)
 	}
 

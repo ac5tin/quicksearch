@@ -54,7 +54,7 @@ func query(c *fiber.Ctx) error {
 	}
 
 	posts := new([]indexer.Post)
-	if err := indexer.I.QueryFullText(input.Query, *input.Lang, input.Limit, input.Offset, posts); err != nil {
+	if err := indexer.I.QueryFullText(&input.Query, input.Lang, input.Limit, input.Offset, posts); err != nil {
 		c.Status(fiber.ErrInternalServerError.Code).JSON(fiber.Map{
 			"ok":    false,
 			"error": err.Error(),
