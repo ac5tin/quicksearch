@@ -3,6 +3,7 @@ package indexer
 import (
 	"context"
 	"log"
+	"net/url"
 	"quicksearch/textprocessor"
 	"sort"
 	"time"
@@ -80,6 +81,19 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 				// language score
 				if *lang == p.Language {
 					score *= LANGUAGE_MULTIPLIER
+				}
+
+				// protocol score (https)
+				{
+
+					if u, err := url.Parse(p.URL); err == nil {
+						switch u.Scheme {
+						case "https":
+							score *= PROTOCOL_MULTIPLIER
+						default:
+							// none
+						}
+					}
 				}
 
 				postMap[p.ID] = &post{p, score}
