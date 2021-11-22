@@ -33,9 +33,10 @@ func deletePost(c *fiber.Ctx) error {
 
 func query(c *fiber.Ctx) error {
 	type inp struct {
-		Query  string `json:"query"`
-		Limit  uint32 `json:"limit"`
-		Offset uint32 `json:"offset"`
+		Query  string  `json:"query"`
+		Limit  uint32  `json:"limit"`
+		Offset uint32  `json:"offset"`
+		Lang   *string `json:"lang"`
 	}
 	input := new(inp)
 
@@ -47,8 +48,13 @@ func query(c *fiber.Ctx) error {
 		return nil
 	}
 
+	if input.Lang == nil {
+		input.Lang = new(string)
+		*input.Lang = "en"
+	}
+
 	posts := new([]indexer.Post)
-	if err := indexer.I.QueryFullText(input.Query, input.Limit, input.Offset, posts); err != nil {
+	if err := indexer.I.QueryFullText(input.Query, *input.Lang, input.Limit, input.Offset, posts); err != nil {
 		c.Status(fiber.ErrInternalServerError.Code).JSON(fiber.Map{
 			"ok":    false,
 			"error": err.Error(),

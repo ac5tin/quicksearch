@@ -10,7 +10,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func (ind *Indexer) QueryFullText(qry string, num, offset uint32, t *[]Post) error {
+func (ind *Indexer) QueryFullText(qry, language string, num, offset uint32, t *[]Post) error {
 	// TODO
 	// - tokenise
 	tp := new(textprocessor.TextProcessor)
@@ -81,6 +81,11 @@ func (ind *Indexer) QueryFullText(qry string, num, offset uint32, t *[]Post) err
 					postMatches[p.ID] = 1
 				}
 				score *= float32(postMatches[p.ID]) * MATCH_MULTIPLIER
+
+				// language score
+				if *lang == language {
+					score *= LANGUAGE_MULTIPLIER
+				}
 				postMap[p.ID] = &post{p, score}
 			}
 			return nil
