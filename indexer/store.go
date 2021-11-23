@@ -2,8 +2,6 @@ package indexer
 
 import (
 	"context"
-	"crypto/sha512"
-	"fmt"
 	"net/url"
 	"quicksearch/utils"
 
@@ -15,7 +13,7 @@ import (
 
 // Post DB table
 type Post struct {
-	ID            string             `db:"id" json:"-"`
+	ID            uint64             `db:"id" json:"-"`
 	Author        string             `db:"author" json:"author"`
 	Site          string             `db:"site" json:"site"`
 	Title         string             `db:"title" json:"title"`
@@ -49,43 +47,38 @@ func NewStore(rc *gr.Client, pg *pgxpool.Pool) Store {
 	}
 }
 
-// generate post id
-func (s *Store) genPostID(url string) string {
-	return fmt.Sprintf("%x", sha512.Sum512([]byte(url)))
-}
-
 // retrieve all post IDs of a given token
-func (s *Store) getPostIDListFromToken(token string, t *[]string) error {
+func (s *Store) getPostIDListFromToken(token *string, t *[]uint64) error {
 	rconn := (*s.rc).Get()
 	defer rconn.Close()
-	res, err := redis.Strings((rconn.Do("LRANGE", token, 0, -1)))
+	res, err := redis.Int64s((rconn.Do("LRANGE", token, 0, -1)))
 	if err != nil {
 		return err
 	}
 
-	*t = res
+	for _, r := range res {
+		*t = append(*t, uint64(r))
+	}
 	return nil
 }
 
 // add a post to a given token
-func (s *Store) addPostLink(token string, url string) error {
-	postID := s.genPostID(url)
+func (s *Store) addPostLink(token *string, id *uint64) error {
 	rconn := (*s.rc).Get()
 	defer rconn.Close()
 
-	if _, err := rconn.Do("LPUSH", token, postID); err != nil {
+	if _, err := rconn.Do("LPUSH", token, id); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (s *Store) delPostLink(token, url string) error {
-	postID := s.genPostID(url)
+func (s *Store) delPostLink(token *string, id *uint64) error {
 	rconn := (*s.rc).Get()
 	defer rconn.Close()
 
-	if _, err := rconn.Do("LREM", token, 0, postID); err != nil {
+	if _, err := rconn.Do("LREM", token, 0, id); err != nil {
 		return err
 	}
 
@@ -93,7 +86,7 @@ func (s *Store) delPostLink(token, url string) error {
 }
 
 // get full post data from a post ID
-func (s *Store) getPostFromPostIDs(postID *[]string, p *[]fullpost) error {
+func (s *Store) getPostFromPostIDs(postID *[]uint64, p *[]fullpost) error {
 	conn, err := s.pg.Acquire(context.Background())
 	if err != nil {
 		return err
@@ -113,12 +106,33 @@ func (s *Store) getPostFromPostIDs(postID *[]string, p *[]fullpost) error {
 	return nil
 }
 
+// returns true if exist
+func (s *Store) getPostsFromURL(url *string, p *[]fullpost) error {
+	conn, err := s.pg.Acquire(context.Background())
+	if err != nil {
+		return err
+	}
+	defer conn.Release()
+
+	if err := pgxscan.Select(context.Background(), conn, p, `
+	SELECT id,title,url,timestamp,posts.site,author,language,summary,tokens,tokens_h,internal_links,external_links,entities,external_site_scores,sites.score as site_score
+	FROM posts
+	LEFT JOIN sites
+    	ON sites.site = posts.site
+	WHERE url = $1
+	`, *url); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // insert (index) a post to store (redis and postgres)
 func (s *Store) InsertPost(p *Post) error {
 	// check if already exist
 	update := false
 	posts := new([]fullpost)
-	if err := s.getPostFromPostIDs(&[]string{s.genPostID(p.URL)}, posts); err != nil {
+	if err := s.getPostsFromURL(&p.URL, posts); err != nil {
 		return err
 	}
 	if len(*posts) > 0 {
@@ -130,10 +144,10 @@ func (s *Store) InsertPost(p *Post) error {
 			post := (*posts)[0]
 			// remove from redis
 			for t := range post.Tokens {
-				s.delPostLink(t, post.URL)
+				s.delPostLink(&t, &post.ID)
 			}
 			for t := range post.Entities {
-				s.delPostLink(t, post.URL)
+				s.delPostLink(&t, &post.ID)
 			}
 			// subtract from site scores
 			for k, v := range post.ExternalSiteScores {
@@ -204,39 +218,33 @@ func (s *Store) InsertPost(p *Post) error {
 		return err
 	}
 	defer conn.Release()
-	tx, err := conn.Begin(context.Background())
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(context.Background())
 
 	var max_str_len uint32 = 255
 	utils.TruncateString(&p.Title, &max_str_len)
 	utils.TruncateString(&p.Author, &max_str_len)
 
-	if _, err = tx.Exec(context.Background(), `
+	rowID := new(uint64)
+
+	if err = pgxscan.Get(context.Background(), conn, rowID, `
         INSERT INTO posts
-            (id,author,site,title,url,timestamp,language,summary,tokens,internal_links,external_links,entities,external_site_scores)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-			ON CONFLICT (id)
+            (author,site,title,url,timestamp,language,summary,tokens,internal_links,external_links,entities,external_site_scores)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+			ON CONFLICT (url)
 			DO UPDATE SET
-				author = $2,
-				site = $3,
-				title = $4,
-				url = $5,
-				timestamp = $6,
-				language = $7,
-				summary = $8,
-				tokens = $9,
-				internal_links = $10,
-				external_links = $11,
-				entities = $12,
-				external_site_scores = $13
-    `, s.genPostID(p.URL), p.Author, p.Site, p.Title, p.URL, p.Timestamp, p.Language, p.Summary, p.Tokens, p.InternalLinks, p.ExternalLinks, p.Entities, p.ExternalSiteScores); err != nil {
-		tx.Rollback(context.Background())
-		return err
-	}
-	if err := tx.Commit(context.Background()); err != nil {
+				author = $1,
+				site = $2,
+				title = $3,
+				url = $4,
+				timestamp = $5,
+				language = $6,
+				summary = $7,
+				tokens = $8,
+				internal_links = $9,
+				external_links = $10,
+				entities = $11,
+				external_site_scores = $12
+		RETURNING id
+    `, p.Author, p.Site, p.Title, p.URL, p.Timestamp, p.Language, p.Summary, p.Tokens, p.InternalLinks, p.ExternalLinks, p.Entities, p.ExternalSiteScores); err != nil {
 		return err
 	}
 
@@ -249,8 +257,7 @@ func (s *Store) InsertPost(p *Post) error {
 	}
 
 	for k := range tokens {
-		if err := s.addPostLink(k, p.URL); err != nil {
-			tx.Rollback(context.Background())
+		if err := s.addPostLink(&k, &p.ID); err != nil {
 			return err
 		}
 	}
@@ -304,9 +311,9 @@ func (s *Store) getSiteScore(site *string, score *float32) error {
 	return nil
 }
 
-func (s *Store) DeletePost(url string) error {
+func (s *Store) DeletePost(url *string) error {
 	posts := new([]fullpost)
-	if err := s.getPostFromPostIDs(&[]string{s.genPostID(url)}, posts); err != nil {
+	if err := s.getPostsFromURL(url, posts); err != nil {
 		return err
 	}
 	// cleanup , reset scores
@@ -314,10 +321,10 @@ func (s *Store) DeletePost(url string) error {
 		for _, p := range *posts {
 			// remove from redis
 			for t := range p.Tokens {
-				s.delPostLink(t, p.URL)
+				s.delPostLink(&t, &p.ID)
 			}
 			for t := range p.Entities {
-				s.delPostLink(t, p.URL)
+				s.delPostLink(&t, &p.ID)
 			}
 			// subtract from site scores
 			for k, v := range p.ExternalSiteScores {
@@ -347,8 +354,8 @@ func (s *Store) DeletePost(url string) error {
 	defer tx.Rollback(context.Background())
 	if _, err := tx.Exec(context.Background(), `
 		DELETE FROM posts
-		WHERE id = $1
-	`, s.genPostID(url)); err != nil {
+		WHERE url = $1
+	`, url); err != nil {
 		tx.Rollback(context.Background())
 		return err
 	}

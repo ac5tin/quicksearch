@@ -24,7 +24,7 @@ func TestStore(t *testing.T) {
 	I.Store = &s
 
 	post := Post{
-		ID:            "test",
+		ID:            1,
 		Author:        "test author",
 		Title:         "test",
 		Tokens:        map[string]float32{"test": 1.2},
@@ -42,7 +42,8 @@ func TestStore(t *testing.T) {
 	}
 
 	t.Log("Deleting post")
-	if err := I.Store.DeletePost("https://example.com"); err != nil {
+	url := "https://example.com"
+	if err := I.Store.DeletePost(&url); err != nil {
 		t.Error(err)
 	}
 }
@@ -76,7 +77,8 @@ func TestRemovePost(t *testing.T) {
 	I = new(Indexer)
 	I.Store = &s
 
-	if errr := I.Store.DeletePost("https://www.fasta.ai"); err != nil {
+	url := "https://www.fasta.ai"
+	if errr := I.Store.DeletePost(&url); err != nil {
 		t.Error(errr)
 	}
 }

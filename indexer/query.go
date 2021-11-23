@@ -28,8 +28,8 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 		score float32
 	}
 	allPosts := new([]post)
-	postMap := make(map[string]*post) // post for each postID
-	postMatches := make(map[string]uint32)
+	postMap := make(map[uint64]*post) // post for each postID
+	postMatches := make(map[uint64]uint32)
 
 	// -- use parallelism to speed up query process
 	g, ctx := errgroup.WithContext(context.Background())
@@ -44,7 +44,7 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 				// dont block
 			}
 			posts := new([]fullpost)
-			if err := ind.QueryToken(t.Token, posts); err != nil {
+			if err := ind.QueryToken(&t.Token, posts); err != nil {
 				return err
 			}
 			tokenMap[&t] = posts
@@ -126,10 +126,10 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 	return nil
 }
 
-func (ind *Indexer) QueryToken(token string, t *[]fullpost) error {
+func (ind *Indexer) QueryToken(token *string, t *[]fullpost) error {
 	// TODO
 	// - get all postID back from token
-	postIds := new([]string)
+	postIds := new([]uint64)
 	if err := ind.Store.getPostIDListFromToken(token, postIds); err != nil {
 		return err
 	}

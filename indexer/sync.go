@@ -9,7 +9,7 @@ func (s *Store) Sync() error {
 
 	for _, p := range *posts {
 		for k := range p.Tokens {
-			if err := s.addPostLink(k, p.URL); err != nil {
+			if err := s.addPostLink(&k, &p.ID); err != nil {
 				return err
 			}
 		}

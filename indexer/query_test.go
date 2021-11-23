@@ -54,7 +54,8 @@ func TestTokenQuery(t *testing.T) {
 	I.Store = &s
 
 	posts := new([]fullpost)
-	if err := I.QueryToken("ai", posts); err != nil {
+	token := "ai"
+	if err := I.QueryToken(&token, posts); err != nil {
 		t.Error(err)
 	}
 
