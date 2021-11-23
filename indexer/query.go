@@ -109,7 +109,7 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 		*allPosts = append(*allPosts, *p)
 	}
 	// - rank by highest score
-	sort.SliceStable(*allPosts, func(i, j int) bool {
+	sort.Slice(*allPosts, func(i, j int) bool {
 		return (*allPosts)[i].score > (*allPosts)[j].score
 	})
 
