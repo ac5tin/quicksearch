@@ -257,7 +257,7 @@ func (s *Store) InsertPost(p *Post) error {
 	}
 
 	for k := range tokens {
-		if err := s.addPostLink(&k, &p.ID); err != nil {
+		if err := s.addPostLink(&k, rowID); err != nil {
 			return err
 		}
 	}
