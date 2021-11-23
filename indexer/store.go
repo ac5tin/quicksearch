@@ -100,21 +100,13 @@ func (s *Store) getPostFromPostIDs(postID *[]string, p *[]fullpost) error {
 	}
 	defer conn.Release()
 
-	str := ""
-	for i, id := range *postID {
-		if i > 0 && i <= len(*postID)-1 {
-			str += ","
-		}
-		str += fmt.Sprintf("'%s'", id)
-	}
-
-	if err := pgxscan.Select(context.Background(), conn, p, fmt.Sprintf(`
+	if err := pgxscan.Select(context.Background(), conn, p, `
 	SELECT id,title,url,timestamp,posts.site,author,language,summary,tokens,tokens_h,internal_links,external_links,entities,external_site_scores,sites.score as site_score
 	FROM posts
 	LEFT JOIN sites
     	ON sites.site = posts.site
-	WHERE id IN (%s)
-	`, str)); err != nil {
+	WHERE id =ANY($1::VARCHAR[])
+	`, *postID); err != nil {
 		return err
 	}
 
