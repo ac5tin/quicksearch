@@ -51,7 +51,7 @@ func NewStore(rc *gr.Client, pg *pgxpool.Pool) Store {
 func (s *Store) getPostIDListFromToken(token *string, t *[]uint64) error {
 	rconn := (*s.rc).Get()
 	defer rconn.Close()
-	res, err := redis.Int64s((rconn.Do("LRANGE", token, 0, -1)))
+	res, err := redis.Int64s((rconn.Do("LRANGE", *token, 0, -1)))
 	if err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func (s *Store) addPostLink(token *string, id *uint64) error {
 	rconn := (*s.rc).Get()
 	defer rconn.Close()
 
-	if _, err := rconn.Do("LPUSH", token, id); err != nil {
+	if _, err := rconn.Do("LPUSH", *token, *id); err != nil {
 		return err
 	}
 
@@ -78,7 +78,7 @@ func (s *Store) delPostLink(token *string, id *uint64) error {
 	rconn := (*s.rc).Get()
 	defer rconn.Close()
 
-	if _, err := rconn.Do("LREM", token, 0, id); err != nil {
+	if _, err := rconn.Do("LREM", *token, 0, *id); err != nil {
 		return err
 	}
 
