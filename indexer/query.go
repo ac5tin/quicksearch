@@ -21,10 +21,10 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 		return err
 	}
 	// - get URLs per token
-	tokenMap := make(map[*textprocessor.Token]*[]Post) // posts for each token
+	tokenMap := make(map[*textprocessor.Token]*[]fullpost) // posts for each token
 
 	type post struct {
-		Post
+		fullpost
 		score float32
 	}
 	allPosts := new([]post)
@@ -43,7 +43,7 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 			default:
 				// dont block
 			}
-			posts := new([]Post)
+			posts := new([]fullpost)
 			if err := ind.QueryToken(t.Token, posts); err != nil {
 				return err
 			}
@@ -58,6 +58,7 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 					// first time we see this post
 					// add site score and timestamp score
 					// - site score from db
+					score += p.SiteScore * SITE_MULTIPLIER
 					// - timestamp score = 1.0 / (1.0 + (timestamp - now) / (24 * 60 * 60))
 					if p.Timestamp == 0 {
 						p.Timestamp = uint64(time.Now().Unix() - 604800) // 1 week ago
@@ -125,7 +126,7 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 	return nil
 }
 
-func (ind *Indexer) QueryToken(token string, t *[]Post) error {
+func (ind *Indexer) QueryToken(token string, t *[]fullpost) error {
 	// TODO
 	// - get all postID back from token
 	postIds := new([]string)

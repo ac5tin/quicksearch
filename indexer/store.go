@@ -32,6 +32,11 @@ type Post struct {
 	ExternalSiteScores map[string]float32 `db:"external_site_scores"`
 }
 
+type fullpost struct {
+	Post
+	SiteScore float32 `db:"site_score"`
+}
+
 type Store struct {
 	rc *gr.Client
 	pg *pgxpool.Pool
@@ -88,7 +93,7 @@ func (s *Store) delPostLink(token, url string) error {
 }
 
 // get full post data from a post ID
-func (s *Store) getPostFromPostIDs(postID *[]string, p *[]Post) error {
+func (s *Store) getPostFromPostIDs(postID *[]string, p *[]fullpost) error {
 	conn, err := s.pg.Acquire(context.Background())
 	if err != nil {
 		return err
@@ -104,8 +109,10 @@ func (s *Store) getPostFromPostIDs(postID *[]string, p *[]Post) error {
 	}
 
 	if err := pgxscan.Select(context.Background(), conn, p, fmt.Sprintf(`
-	SELECT id,title,url,timestamp,site,author,language,summary,tokens,tokens_h,internal_links,external_links,entities,external_site_scores
+	SELECT id,title,url,timestamp,posts.site,author,language,summary,tokens,tokens_h,internal_links,external_links,entities,external_site_scores,sites.score as site_score
 	FROM posts
+	LEFT JOIN sites
+    	ON sites.site = posts.site
 	WHERE id IN (%s)
 	`, str)); err != nil {
 		return err
@@ -118,7 +125,7 @@ func (s *Store) getPostFromPostIDs(postID *[]string, p *[]Post) error {
 func (s *Store) InsertPost(p *Post) error {
 	// check if already exist
 	update := false
-	posts := new([]Post)
+	posts := new([]fullpost)
 	if err := s.getPostFromPostIDs(&[]string{s.genPostID(p.URL)}, posts); err != nil {
 		return err
 	}
@@ -306,7 +313,7 @@ func (s *Store) getSiteScore(site *string, score *float32) error {
 }
 
 func (s *Store) DeletePost(url string) error {
-	posts := new([]Post)
+	posts := new([]fullpost)
 	if err := s.getPostFromPostIDs(&[]string{s.genPostID(url)}, posts); err != nil {
 		return err
 	}
