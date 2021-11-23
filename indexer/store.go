@@ -98,7 +98,7 @@ func (s *Store) getPostFromPostIDs(postID *[]uint64, p *[]fullpost) error {
 	FROM posts
 	LEFT JOIN sites
     	ON sites.site = posts.site
-	WHERE id =ANY($1::VARCHAR[])
+	WHERE id =ANY($1::INT[])
 	`, *postID); err != nil {
 		return err
 	}
