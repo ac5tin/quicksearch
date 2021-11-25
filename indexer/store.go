@@ -344,9 +344,32 @@ func (s *Store) InsertPost(p *Post) error {
 		tokens[k] = struct{}{}
 	}
 
-	for k := range tokens {
-		if err := s.addPostLink(&k, rowID); err != nil {
+	{
+		// tokens
+		allTokens := make(map[string]interface{})
+		for k := range tokens {
+			allTokens[k] = struct{}{}
+		}
+		for k := range p.TokensH {
+			allTokens[k] = struct{}{}
+		}
+		// site tokens
+		siteTokens := new([]map[string]float32)
+		if err := pgxscan.Select(context.Background(), conn, siteTokens, `
+			SELECT tokens FROM sites WHERE site = $1
+		`, p.Site); err != nil {
 			return err
+		}
+		if len(*siteTokens) == 0 {
+			for k := range (*siteTokens)[0] {
+				allTokens[k] = struct{}{}
+			}
+		}
+		// insert tokens
+		for t := range allTokens {
+			if err := s.addPostLink(&t, rowID); err != nil {
+				return err
+			}
 		}
 	}
 
