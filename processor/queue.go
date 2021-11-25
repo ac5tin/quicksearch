@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-const MAX_PARALLEL = 3
-const MAX_RETRY = 10
+const MAX_PARALLEL = 10
+const MAX_RETRY = 30
 
 var queue []*Results = []*Results{}
 
