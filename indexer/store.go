@@ -32,7 +32,8 @@ type Post struct {
 
 type fullpost struct {
 	Post
-	SiteScore float32 `db:"site_score"`
+	SiteScore  float32            `db:"site_score"`
+	SiteTokens map[string]float32 `db:"site_tokens"`
 }
 
 type Store struct {
@@ -94,7 +95,7 @@ func (s *Store) getPostFromPostIDs(postID *[]uint64, p *[]fullpost) error {
 	defer conn.Release()
 
 	if err := pgxscan.Select(context.Background(), conn, p, `
-	SELECT id,title,url,timestamp,posts.site,author,language,summary,tokens,tokens_h,internal_links,external_links,entities,external_site_scores,sites.score as site_score
+	SELECT id,title,url,timestamp,posts.site,author,language,summary,posts.tokens,tokens_h,internal_links,external_links,entities,external_site_scores,sites.score as site_score,sites.tokens as site_tokens
 	FROM posts
 	LEFT JOIN sites
     	ON sites.site = posts.site

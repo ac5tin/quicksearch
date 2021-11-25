@@ -50,7 +50,7 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 			tokenMap[&t] = posts
 
 			for _, p := range *posts {
-				// -- post score = token score + token heuristics + site score + timestamp score + matches
+				// -- post score = token score + token heuristics + site tokens + site score + timestamp score + matches
 				var score float32 = 0.0
 				if s, ok := postMap[p.ID]; ok {
 					score = s.score
@@ -67,9 +67,20 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 					tsScore := float32(1.0 / float64(1.0+float64(int64(p.Timestamp-uint64(time.Now().Unix())))/float64(24*60*60)))
 					score += tsScore * TIME_MULTIPLIER
 				}
-				if h, ok := p.TokensH[t.Token]; ok {
-					score += h
+				{
+					// human tokens
+					if h, ok := p.TokensH[t.Token]; ok {
+						score += h
+					}
 				}
+
+				{
+					// site tokens
+					if h, ok := p.SiteTokens[t.Token]; ok {
+						score += h
+					}
+				}
+				// ai tokens
 				score += p.Tokens[t.Token]
 
 				if v, ok := postMatches[p.ID]; ok {
@@ -135,8 +146,10 @@ func (ind *Indexer) QueryToken(token *string, t *[]fullpost) error {
 	}
 
 	// - get all post back from postID
+	t0 := time.Now()
 	if err := ind.Store.getPostFromPostIDs(postIds, t); err != nil {
 		return err
 	}
+	log.Printf("Query %s [%d rows] from db took %v\n", *token, len(*t), time.Since(t0))
 	return nil
 }
