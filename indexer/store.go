@@ -116,7 +116,7 @@ func (s *Store) getPostsFromURL(url *string, p *[]fullpost) error {
 	defer conn.Release()
 
 	if err := pgxscan.Select(context.Background(), conn, p, `
-	SELECT id,title,url,timestamp,posts.site,author,language,summary,tokens,tokens_h,internal_links,external_links,entities,external_site_scores,sites.score as site_score
+	SELECT id,title,url,timestamp,posts.site,author,language,summary,posts.tokens,tokens_h,internal_links,external_links,entities,external_site_scores,sites.score as site_score
 	FROM posts
 	LEFT JOIN sites
     	ON sites.site = posts.site
