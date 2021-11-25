@@ -128,6 +128,90 @@ func (s *Store) getPostsFromURL(url *string, p *[]fullpost) error {
 	return nil
 }
 
+// set token scores of a given site
+func (s *Store) SetSiteTokens(site *string, tokens *map[string]float32) error {
+	// update site token in db
+	// then add url to each token in redis
+	conn, err := s.pg.Acquire(context.Background())
+	if err != nil {
+		return err
+	}
+	defer conn.Release()
+
+	type postSiteToken struct {
+		ID     uint64             `db:"id"`
+		Tokens map[string]float32 `db:"tokens"`
+	}
+	posts := new([]postSiteToken)
+	{
+		// retrieve all posts of a given site
+		if err := pgxscan.Select(context.Background(), conn, posts, `
+		SELECT id,sites.tokens FROM posts
+			LEFT JOIN sites
+				ON sites.site = posts.site
+			WHERE posts.site = $1
+	`, site); err != nil {
+			return err
+		}
+	}
+
+	{
+		// update redis
+		rconn := (*s.rc).Get()
+		defer rconn.Close()
+		for token := range *tokens {
+			// lrem first to remove (just in case it exist)
+			args := new([]interface{})   // for passing to lpushx
+			*args = append(*args, token) // first argument is the token
+			for i, post := range *posts {
+				// lrem first
+				if _, err := rconn.Do("LREM", token, 0, post.ID); err != nil {
+					return err
+				}
+				for k := range post.Tokens {
+					if _, err := rconn.Do("LREM", k, 0, post.ID); err != nil {
+						return err
+					}
+				}
+
+				// push
+				if i == 0 {
+					if _, err := rconn.Do("LPUSH", token, post.ID); err != nil {
+						return err
+					}
+					continue
+				}
+				*args = append(*args, post.ID) // add ids
+			}
+			// then lpush to append id
+			if _, err := rconn.Do("LPUSHX", *args...); err != nil {
+				return err
+			}
+		}
+	}
+
+	{
+		// set site tokens
+		tx, err := conn.Begin(context.Background())
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback(context.Background())
+		if _, err := tx.Exec(context.Background(), `
+		UPDATE sites
+			SET tokens = $1
+		WHERE site = $2
+	`, *tokens, *site); err != nil {
+			tx.Rollback(context.Background())
+			return err
+		}
+		if err := tx.Commit(context.Background()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // insert (index) a post to store (redis and postgres)
 func (s *Store) InsertPost(p *Post) error {
 	// check if already exist
@@ -148,6 +232,9 @@ func (s *Store) InsertPost(p *Post) error {
 				s.delPostLink(&t, &post.ID)
 			}
 			for t := range post.Entities {
+				s.delPostLink(&t, &post.ID)
+			}
+			for t := range post.SiteTokens {
 				s.delPostLink(&t, &post.ID)
 			}
 			// subtract from site scores
@@ -325,6 +412,9 @@ func (s *Store) DeletePost(url *string) error {
 				s.delPostLink(&t, &p.ID)
 			}
 			for t := range p.Entities {
+				s.delPostLink(&t, &p.ID)
+			}
+			for t := range p.SiteTokens {
 				s.delPostLink(&t, &p.ID)
 			}
 			// subtract from site scores
