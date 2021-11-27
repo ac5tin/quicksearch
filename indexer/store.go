@@ -17,17 +17,17 @@ type Post struct {
 	Author        string             `db:"author" json:"author"`
 	Site          string             `db:"site" json:"site"`
 	Title         string             `db:"title" json:"title"`
-	Tokens        map[string]float32 `db:"tokens" json:"tokens"`
-	TokensH       map[string]float32 `db:"tokens_h" json:"tokens_h"`
+	Tokens        map[string]float32 `db:"tokens" json:"tokens,omitempty"`
+	TokensH       map[string]float32 `db:"tokens_h" json:"tokens_h,omitempty"`
 	Summary       string             `db:"summary" json:"summary"`
 	URL           string             `db:"url" json:"url"`
 	Timestamp     uint64             `db:"timestamp" json:"timestamp"`
 	Language      string             `db:"language" json:"language"`
-	InternalLinks []string           `db:"internal_links" json:"internal_links"`
-	ExternalLinks []string           `db:"external_links" json:"external_links"`
-	Entities      map[string]float32 `db:"entities" json:"entities"`
+	InternalLinks []string           `db:"internal_links" json:"internal_links,omitempty"`
+	ExternalLinks []string           `db:"external_links" json:"external_links,omitempty"`
+	Entities      map[string]float32 `db:"entities" json:"entities,omitempty"`
 	// logging down scores added to external sites
-	ExternalSiteScores map[string]float32 `db:"external_site_scores"`
+	ExternalSiteScores map[string]float32 `db:"external_site_scores" json:"external_site_scores,omitempty"`
 }
 
 type fullpost struct {

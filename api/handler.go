@@ -119,10 +119,11 @@ func setTokensH(c *fiber.Ctx) error {
 
 func query(c *fiber.Ctx) error {
 	type inp struct {
-		Query  string  `json:"query"`
-		Limit  uint32  `json:"limit"`
-		Offset uint32  `json:"offset"`
-		Lang   *string `json:"lang"`
+		Query        string  `json:"query"`
+		Limit        uint32  `json:"limit"`
+		Offset       uint32  `json:"offset"`
+		Lang         *string `json:"lang"`
+		ScoreDetails *bool   `json:"score_details"`
 	}
 	input := new(inp)
 
@@ -145,6 +146,19 @@ func query(c *fiber.Ctx) error {
 			"ok":    false,
 			"error": err.Error(),
 		})
+	}
+	{
+		// display score details
+		if input.ScoreDetails == nil || !*input.ScoreDetails {
+			for _, post := range *posts {
+				post.Entities = nil
+				post.ExternalLinks = nil
+				post.InternalLinks = nil
+				post.Tokens = nil
+				post.TokensH = nil
+				post.ExternalSiteScores = nil
+			}
+		}
 	}
 
 	// all done
