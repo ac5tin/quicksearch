@@ -161,9 +161,7 @@ func (s *Store) SetSiteTokens(site *string, tokens *map[string]float32) error {
 		defer rconn.Close()
 		for token := range *tokens {
 			// lrem first to remove (just in case it exist)
-			args := new([]interface{})   // for passing to lpushx
-			*args = append(*args, token) // first argument is the token
-			for i, post := range *posts {
+			for _, post := range *posts {
 				// lrem first
 				if _, err := rconn.Do("LREM", token, 0, post.ID); err != nil {
 					return err
@@ -175,18 +173,11 @@ func (s *Store) SetSiteTokens(site *string, tokens *map[string]float32) error {
 				}
 
 				// push
-				if i == 0 {
-					if _, err := rconn.Do("LPUSH", token, post.ID); err != nil {
-						return err
-					}
-					continue
+				if _, err := rconn.Do("LPUSH", token, post.ID); err != nil {
+					return err
 				}
-				*args = append(*args, post.ID) // add ids
 			}
-			// then lpush to append id
-			if _, err := rconn.Do("LPUSHX", *args...); err != nil {
-				return err
-			}
+
 		}
 	}
 
