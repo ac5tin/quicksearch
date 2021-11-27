@@ -3,6 +3,7 @@ package indexer
 import (
 	"context"
 	"log"
+	"math"
 	"net/url"
 	"quicksearch/textprocessor"
 	"sort"
@@ -59,13 +60,20 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 					// first time we see this post
 					// add site score and timestamp score
 					// - site score from db
-					score += p.SiteScore * SITE_MULTIPLIER
+					siteScore := p.SiteScore
+					if siteScore > 300 {
+						siteScore = 300
+					}
+					score += p.SiteScore * float32(math.Pow(SITE_MULTIPLIER, 2.0))
 					// - timestamp score = 1.0 / (1.0 + (timestamp - now) / (24 * 60 * 60))
 					if p.Timestamp == 0 {
 						p.Timestamp = uint64(time.Now().Unix() - 604800) // 1 week ago
 					}
 
 					tsScore := float32(1.0 / float64(1.0+float64(int64(p.Timestamp-uint64(time.Now().Unix())))/float64(24*60*60)))
+					if tsScore < 0 {
+						tsScore = 0.001
+					}
 					score += tsScore * TIME_MULTIPLIER
 
 					// language score
@@ -89,7 +97,7 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 							paths := len(strings.Split(u.Path, "/"))
 							// paths size greater = less likely homepage = less score
 							pathScore := 1 / float32(paths) * PATH_MULTIPLIER
-							score *= pathScore
+							score += pathScore
 						}
 					}
 				}
