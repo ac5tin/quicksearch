@@ -57,6 +57,36 @@ func deletePost(c *fiber.Ctx) error {
 	return nil
 }
 
+func setSiteTokens(c *fiber.Ctx) error {
+	type inp struct {
+		Site   string             `json:"site"`
+		Tokens map[string]float32 `json:"tokens"`
+	}
+	input := new(inp)
+	if err := c.BodyParser(input); err != nil {
+		c.Status(fiber.ErrInternalServerError.Code).JSON(fiber.Map{
+			"ok":    false,
+			"error": err.Error(),
+		})
+		return nil
+	}
+
+	if err := indexer.I.Store.SetSiteTokens(&input.Site, &input.Tokens); err != nil {
+		c.Status(fiber.ErrInternalServerError.Code).JSON(fiber.Map{
+			"ok":    false,
+			"error": err.Error(),
+		})
+		return nil
+	}
+
+	// all done
+	c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"ok": true,
+	})
+
+	return nil
+}
+
 func query(c *fiber.Ctx) error {
 	type inp struct {
 		Query  string  `json:"query"`
