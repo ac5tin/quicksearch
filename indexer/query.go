@@ -95,8 +95,9 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 								// none
 							}
 							paths := len(strings.Split(u.Path, "/"))
+							queries := len(strings.Split(u.RawQuery, "="))
 							// paths size greater = less likely homepage = less score
-							pathScore := 1 / float32(paths) * PATH_MULTIPLIER
+							pathScore := 1 / float32(paths+queries) * PATH_MULTIPLIER
 							score += pathScore
 						}
 					}
