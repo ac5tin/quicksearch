@@ -221,7 +221,7 @@ func (s *Store) SetPostHTokens(url *string, tokens *map[string]float32) error {
 	{
 		// retrieve all posts of a given site
 		if err := pgxscan.Select(context.Background(), conn, posts, `
-		SELECT id,sites.tokens_h FROM posts
+		SELECT id,tokens_h FROM posts
 			WHERE posts.url = $1
 	`, url); err != nil {
 			return err
