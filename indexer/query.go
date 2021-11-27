@@ -73,26 +73,24 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 						score *= LANGUAGE_MULTIPLIER
 					}
 
-					// protocol score (https)
+					// url based scores
+
 					{
 
 						if u, err := url.Parse(p.URL); err == nil {
+							// successfully parsed url
+							// protocol score (https)
 							switch u.Scheme {
 							case "https":
 								score *= PROTOCOL_MULTIPLIER
 							default:
 								// none
 							}
+							paths := len(strings.Split(u.Path, "/"))
+							// paths size greater = less likely homepage = less score
+							pathScore := 1 / float32(paths) * PATH_MULTIPLIER
+							score *= pathScore
 						}
-					}
-
-					// path length score
-					// - less paths = probably homepage = more score
-					if u, err := url.Parse(p.URL); err == nil {
-						// successfully parsed url
-						paths := len(strings.Split(u.Path, "/"))
-						// paths size greater = less likely homepage = less score
-						score *= float32(1/paths) * PATH_MULTIPLIER
 					}
 				}
 				// possibly not the same time we see this post, add token score
