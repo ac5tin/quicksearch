@@ -203,6 +203,79 @@ func (s *Store) SetSiteTokens(site *string, tokens *map[string]float32) error {
 	return nil
 }
 
+// set htoken scores of a given post
+func (s *Store) SetPostHTokens(url *string, tokens *map[string]float32) error {
+	// update site token in db
+	// then add url to each token in redis
+	conn, err := s.pg.Acquire(context.Background())
+	if err != nil {
+		return err
+	}
+	defer conn.Release()
+
+	type postHTokens struct {
+		ID     uint64             `db:"id"`
+		Tokens map[string]float32 `db:"tokens_h"`
+	}
+	posts := new([]postHTokens)
+	{
+		// retrieve all posts of a given site
+		if err := pgxscan.Select(context.Background(), conn, posts, `
+		SELECT id,sites.tokens_h FROM posts
+			WHERE posts.url = $1
+	`, url); err != nil {
+			return err
+		}
+	}
+
+	{
+		// update redis
+		rconn := (*s.rc).Get()
+		defer rconn.Close()
+		for token := range *tokens {
+			// lrem first to remove (just in case it exist)
+			for _, post := range *posts {
+				// lrem first
+				if _, err := rconn.Do("LREM", token, 0, post.ID); err != nil {
+					return err
+				}
+				for k := range post.Tokens {
+					if _, err := rconn.Do("LREM", k, 0, post.ID); err != nil {
+						return err
+					}
+				}
+
+				// push
+				if _, err := rconn.Do("LPUSH", token, post.ID); err != nil {
+					return err
+				}
+			}
+
+		}
+	}
+
+	{
+		// set site tokens
+		tx, err := conn.Begin(context.Background())
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback(context.Background())
+		if _, err := tx.Exec(context.Background(), `
+		UPDATE posts
+			SET tokens_h = $1
+		WHERE url = $2
+	`, *tokens, *url); err != nil {
+			tx.Rollback(context.Background())
+			return err
+		}
+		if err := tx.Commit(context.Background()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // insert (index) a post to store (redis and postgres)
 func (s *Store) InsertPost(p *Post) error {
 	// check if already exist

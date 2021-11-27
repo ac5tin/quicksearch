@@ -104,3 +104,23 @@ func TestSetSiteToken(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestSetHToken(t *testing.T) {
+	godotenv.Load("../.env")
+	// setup store
+	pg, err := db.Db(os.Getenv("DB_STRING"), os.Getenv("DB_SCHEMA"))
+	if err != nil {
+		t.Error(err)
+	}
+	rc := gr.NewRedisClient(fmt.Sprintf("%s:%s", os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT")), 0, "")
+	s := NewStore(rc, pg)
+	I = new(Indexer)
+	I.Store = &s
+
+	url := "https://www.facebook.com/"
+	tokens := make(map[string]float32)
+	tokens["facebook"] = 500.5
+	if err := I.Store.SetPostHTokens(&url, &tokens); err != nil {
+		t.Error(err)
+	}
+}
