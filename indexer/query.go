@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"quicksearch/textprocessor"
 	"sort"
+	"strings"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -50,7 +51,7 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 			tokenMap[&t] = posts
 
 			for _, p := range *posts {
-				// -- post score = token score + token heuristics + site tokens + site score + timestamp score + matches
+				// -- post score = token score + token heuristics + site tokens + site score + timestamp score + matches + path length
 				var score float32 = 0.0
 				if s, ok := postMap[p.ID]; ok {
 					score = s.score
@@ -66,7 +67,35 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 
 					tsScore := float32(1.0 / float64(1.0+float64(int64(p.Timestamp-uint64(time.Now().Unix())))/float64(24*60*60)))
 					score += tsScore * TIME_MULTIPLIER
+
+					// language score
+					if *lang == p.Language {
+						score *= LANGUAGE_MULTIPLIER
+					}
+
+					// protocol score (https)
+					{
+
+						if u, err := url.Parse(p.URL); err == nil {
+							switch u.Scheme {
+							case "https":
+								score *= PROTOCOL_MULTIPLIER
+							default:
+								// none
+							}
+						}
+					}
+
+					// path length score
+					// - less paths = probably homepage = more score
+					if u, err := url.Parse(p.URL); err == nil {
+						// successfully parsed url
+						paths := len(strings.Split(u.Path, "/"))
+						// paths size greater = less likely homepage = less score
+						score *= float32(1/paths) * PATH_MULTIPLIER
+					}
 				}
+				// possibly not the same time we see this post, add token score
 				{
 					// human tokens
 					if h, ok := p.TokensH[t.Token]; ok {
@@ -89,24 +118,6 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 					postMatches[p.ID] = 1
 				}
 				score *= float32(postMatches[p.ID]) * MATCH_MULTIPLIER
-
-				// language score
-				if *lang == p.Language {
-					score *= LANGUAGE_MULTIPLIER
-				}
-
-				// protocol score (https)
-				{
-
-					if u, err := url.Parse(p.URL); err == nil {
-						switch u.Scheme {
-						case "https":
-							score *= PROTOCOL_MULTIPLIER
-						default:
-							// none
-						}
-					}
-				}
 
 				postMap[p.ID] = &post{p, score}
 			}
@@ -146,10 +157,10 @@ func (ind *Indexer) QueryToken(token *string, t *[]fullpost) error {
 	}
 
 	// - get all post back from postID
-	t0 := time.Now()
+	//t0 := time.Now()
 	if err := ind.Store.getPostFromPostIDs(postIds, t); err != nil {
 		return err
 	}
-	log.Printf("Query %s [%d rows] from db took %v\n", *token, len(*t), time.Since(t0))
+	//log.Printf("Query %s [%d rows] from db took %v\n", *token, len(*t), time.Since(t0))
 	return nil
 }
