@@ -150,13 +150,15 @@ func query(c *fiber.Ctx) error {
 	{
 		// display score details
 		if input.ScoreDetails == nil || !*input.ScoreDetails {
-			for _, post := range *posts {
+			for i, post := range *posts {
 				post.Entities = nil
 				post.ExternalLinks = nil
 				post.InternalLinks = nil
 				post.Tokens = nil
 				post.TokensH = nil
 				post.ExternalSiteScores = nil
+				// update
+				(*posts)[i] = post
 			}
 		}
 	}
