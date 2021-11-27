@@ -28,6 +28,32 @@ func insertPost(c *fiber.Ctx) error {
 }
 
 func deletePost(c *fiber.Ctx) error {
+	type inp struct {
+		URLs []string `json:"urls"`
+	}
+	urls := new(inp)
+	if err := c.BodyParser(urls); err != nil {
+		c.Status(fiber.ErrBadRequest.Code).JSON(fiber.Map{
+			"ok":    false,
+			"error": err.Error(),
+		})
+		return nil
+	}
+
+	for _, url := range urls.URLs {
+		if err := indexer.I.Store.DeletePost(&url); err != nil {
+			c.Status(fiber.ErrInternalServerError.Code).JSON(fiber.Map{
+				"ok":    false,
+				"error": err.Error(),
+			})
+			return nil
+		}
+	}
+	// all done
+	c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"ok": true,
+	})
+
 	return nil
 }
 
