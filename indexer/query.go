@@ -161,6 +161,10 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 					scores = append(scores, v)
 					sum += v
 				}
+				// sort tokenscores
+				sort.Slice(scores, func(i, j int) bool {
+					return scores[i] < scores[j]
+				})
 				p.score += sum + (scores[len(scores)-2] * MATCH_MULTIPLIER * float32(len(scores)))
 			} else {
 				// since only one token, just use that token's score
