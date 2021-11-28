@@ -27,11 +27,13 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 
 	type post struct {
 		fullpost
-		score float32
+		score       float32            // final score (sum of all scores)
+		baseScore   float32            // initial score
+		tokenScores map[string]float32 // score of each token
 	}
 	allPosts := new([]post)
 	postMap := make(map[uint64]*post) // post for each postID
-	postMatches := make(map[uint64]uint32)
+	//postMatches := make(map[uint64]uint32)
 
 	// -- use parallelism to speed up query process
 	g, ctx := errgroup.WithContext(context.Background())
@@ -52,81 +54,94 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 			tokenMap[&t] = posts
 
 			for _, p := range *posts {
-				// -- post score = token score + token heuristics + site tokens + site score + timestamp score + matches + path length
-				var score float32 = 0.0
-				if s, ok := postMap[p.ID]; ok {
-					score = s.score
-				} else {
-					// first time we see this post
-					// add site score and timestamp score
-					// - site score from db
-					siteScore := p.SiteScore
-					if siteScore > 300 {
-						siteScore = 300
-					}
-					score += p.SiteScore * float32(math.Pow(SITE_MULTIPLIER, 2.0))
-					// - timestamp score = 1.0 / (1.0 + (timestamp - now) / (24 * 60 * 60))
-					if p.Timestamp == 0 {
-						p.Timestamp = uint64(time.Now().Unix() - 604800) // 1 week ago
-					}
+				// base score
+				{
+					// -- post score = token score + token heuristics + site tokens + site score + timestamp score + matches + path length
+					var score float32 = 0.0
+					if _, ok := postMap[p.ID]; !ok {
+						// first time we see this post
+						// add site score and timestamp score
+						// - site score from db
+						siteScore := p.SiteScore
+						if siteScore > 300 {
+							siteScore = 300
+						}
+						score += p.SiteScore * float32(math.Pow(SITE_MULTIPLIER, 2.0))
+						// - timestamp score = 1.0 / (1.0 + (timestamp - now) / (24 * 60 * 60))
+						if p.Timestamp == 0 {
+							p.Timestamp = uint64(time.Now().Unix() - 604800) // 1 week ago
+						}
 
-					tsScore := float32(1.0 / float64(1.0+float64(int64(p.Timestamp-uint64(time.Now().Unix())))/float64(24*60*60)))
-					if tsScore < 0 {
-						tsScore = 0.001
+						tsScore := float32(1.0 / float64(1.0+float64(int64(p.Timestamp-uint64(time.Now().Unix())))/float64(24*60*60)))
+						if tsScore < 0 {
+							tsScore = 0.001
+						}
+						score += tsScore * TIME_MULTIPLIER
+
+						// language score
+						if *lang == p.Language {
+							score *= LANGUAGE_MULTIPLIER
+						}
+
+						// url based scores
+
+						{
+
+							if u, err := url.Parse(p.URL); err == nil {
+								// successfully parsed url
+								// protocol score (https)
+								switch u.Scheme {
+								case "https":
+									score *= PROTOCOL_MULTIPLIER
+								default:
+									// none
+								}
+								paths := len(strings.Split(u.Path, "/"))
+								queries := len(strings.Split(u.RawQuery, "="))
+								// paths size greater = less likely homepage = less score
+								pathScore := 1 / float32(paths+(queries*PATH_QUERY_MULTIPLIER)) * PATH_MULTIPLIER
+								score += pathScore
+							}
+						}
+						// set base score
+						postMap[p.ID] = &post{p, 0, score, make(map[string]float32)}
 					}
-					score += tsScore * TIME_MULTIPLIER
+				}
 
-					// language score
-					if *lang == p.Language {
-						score *= LANGUAGE_MULTIPLIER
-					}
-
-					// url based scores
-
+				// token score
+				{
+					var score float32 = 0.0
+					// human tokens
 					{
 
-						if u, err := url.Parse(p.URL); err == nil {
-							// successfully parsed url
-							// protocol score (https)
-							switch u.Scheme {
-							case "https":
-								score *= PROTOCOL_MULTIPLIER
-							default:
-								// none
-							}
-							paths := len(strings.Split(u.Path, "/"))
-							queries := len(strings.Split(u.RawQuery, "="))
-							// paths size greater = less likely homepage = less score
-							pathScore := 1 / float32(paths+(queries*PATH_QUERY_MULTIPLIER)) * PATH_MULTIPLIER
-							score += pathScore
+						if h, ok := p.TokensH[t.Token]; ok {
+							score += h
 						}
 					}
-				}
-				// possibly not the same time we see this post, add token score
-				{
-					// human tokens
-					if h, ok := p.TokensH[t.Token]; ok {
-						score += h
-					}
-				}
-
-				{
 					// site tokens
-					if h, ok := p.SiteTokens[t.Token]; ok {
-						score += h
+					{
+
+						if h, ok := p.SiteTokens[t.Token]; ok {
+							score += h
+						}
 					}
+					// ai tokens
+					{
+						score += p.Tokens[t.Token]
+					}
+					postMap[p.ID].tokenScores[t.Token] = score
 				}
-				// ai tokens
-				score += p.Tokens[t.Token]
 
-				if v, ok := postMatches[p.ID]; ok {
-					postMatches[p.ID] = v + 1
-				} else {
-					postMatches[p.ID] = 1
-				}
-				score *= float32(postMatches[p.ID]) * MATCH_MULTIPLIER
+				/*
+					if v, ok := postMatches[p.ID]; ok {
+						postMatches[p.ID] = v + 1
+					} else {
+						postMatches[p.ID] = 1
+					}
+					score *= float32(postMatches[p.ID]) * MATCH_MULTIPLIER
 
-				postMap[p.ID] = &post{p, score}
+					postMap[p.ID] = &post{p, score}
+				*/
 			}
 			return nil
 		})
@@ -135,6 +150,27 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 		return err
 	}
 	for _, p := range postMap {
+		// post final score
+		{
+			p.score = p.baseScore
+			// final score = (average of all token scores) + (2nd highest token score) * TOKEN_MULTIPLIER
+			if len(p.tokenScores) > 1 {
+				scores := make([]float32, 0, len(p.tokenScores))
+				var sum float32 = 0.0
+				for _, v := range p.tokenScores {
+					scores = append(scores, v)
+					sum += v
+				}
+				p.score += sum + (scores[len(scores)-2] * MATCH_MULTIPLIER * float32(len(scores)))
+			} else {
+				// since only one token, just use that token's score
+				for _, v := range p.tokenScores {
+					p.score += v
+				}
+			}
+		}
+
+		// finally push the the posts list
 		*allPosts = append(*allPosts, *p)
 	}
 	// - rank by highest score
