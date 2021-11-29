@@ -76,6 +76,9 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 						if tsScore < 0 {
 							tsScore = 0.001
 						}
+						if tsScore > TIME_MULTIPLIER {
+							tsScore = TIME_MULTIPLIER
+						}
 						score += tsScore * TIME_MULTIPLIER
 
 						// language score
@@ -189,6 +192,7 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 		}
 
 		// finally push the the posts list
+		// log.Println(p.ID, p.Title, p.baseScore, p.tokenScores, p.score) // debug (print score)
 		*allPosts = append(*allPosts, *p)
 	}
 	// - rank by highest score
@@ -201,8 +205,9 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 		*allPosts = (*allPosts)[offset : offset+num]
 	}
 
+	//log.Println("top posts")
 	for _, p := range *allPosts {
-		//log.Println(p.URL, p.baseScore, p.tokenScores, p.score) // debug (print score)
+		// log.Println(p.ID, p.Title, p.baseScore, p.tokenScores, p.score) // debug (print score)
 		*t = append(*t, p.Post)
 	}
 
