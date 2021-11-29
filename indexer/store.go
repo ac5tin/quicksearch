@@ -128,6 +128,47 @@ func (s *Store) getPostsFromURL(url *string, p *[]fullpost) error {
 	return nil
 }
 
+func (s *Store) rmTokens(tokens, tokensH, siteTokens *map[string]float32, postID *uint64) error {
+	allTokens := make(map[string]interface{})
+	for k := range *tokens {
+		allTokens[k] = struct{}{}
+	}
+	for k := range *tokensH {
+		allTokens[k] = struct{}{}
+	}
+	for k := range *siteTokens {
+		allTokens[k] = struct{}{}
+	}
+	for t := range allTokens {
+
+		if err := s.delPostLink(&t, postID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Store) addTokens(tokens, tokensH, siteTokens *map[string]float32, postID *uint64) error {
+	allTokens := make(map[string]interface{})
+	for k := range *tokens {
+		allTokens[k] = struct{}{}
+	}
+	for k := range *tokensH {
+		allTokens[k] = struct{}{}
+	}
+	for k := range *siteTokens {
+		allTokens[k] = struct{}{}
+	}
+	for t := range allTokens {
+
+		if err := s.addPostLink(&t, postID); err != nil {
+			return err
+		}
+	}
+	return nil
+
+}
+
 // set token scores of a given site
 func (s *Store) SetSiteTokens(site *string, tokens *map[string]float32) error {
 	// update site token in db
@@ -292,14 +333,8 @@ func (s *Store) InsertPost(p *Post) error {
 		if update {
 			post := (*posts)[0]
 			// remove from redis
-			for t := range post.Tokens {
-				s.delPostLink(&t, &post.ID)
-			}
-			for t := range post.Entities {
-				s.delPostLink(&t, &post.ID)
-			}
-			for t := range post.SiteTokens {
-				s.delPostLink(&t, &post.ID)
+			if err := s.rmTokens(&post.Tokens, &post.TokensH, &post.SiteTokens, &post.ID); err != nil {
+				return err
 			}
 			// subtract from site scores
 			for k, v := range post.ExternalSiteScores {
@@ -400,23 +435,8 @@ func (s *Store) InsertPost(p *Post) error {
 		return err
 	}
 
-	tokens := make(map[string]interface{})
-	for k := range p.Tokens {
-		tokens[k] = struct{}{}
-	}
-	for k := range p.Entities {
-		tokens[k] = struct{}{}
-	}
-
+	// tokens
 	{
-		// tokens
-		allTokens := make(map[string]interface{})
-		for k := range tokens {
-			allTokens[k] = struct{}{}
-		}
-		for k := range p.TokensH {
-			allTokens[k] = struct{}{}
-		}
 		// site tokens
 		siteTokens := new([]map[string]float32)
 		if err := pgxscan.Select(context.Background(), conn, siteTokens, `
@@ -424,16 +444,9 @@ func (s *Store) InsertPost(p *Post) error {
 		`, p.Site); err != nil {
 			return err
 		}
-		if len(*siteTokens) == 0 {
-			for k := range (*siteTokens)[0] {
-				allTokens[k] = struct{}{}
-			}
-		}
 		// insert tokens
-		for t := range allTokens {
-			if err := s.addPostLink(&t, rowID); err != nil {
-				return err
-			}
+		if err := s.addTokens(&p.Tokens, &p.TokensH, &(*siteTokens)[0], rowID); err != nil {
+			return err
 		}
 	}
 
