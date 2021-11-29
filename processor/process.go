@@ -8,8 +8,8 @@ import (
 	"sync"
 )
 
-const TITLE_MULTIPLIER = 25.0
-const SUMMARY_MULTIPLIER = 10.5
+const TITLE_MULTIPLIER = 50.0
+const SUMMARY_MULTIPLIER = 15.5
 const AUTHOR_MULTIPLIER = 7.5
 
 func processPostResults(r *Results) error {
