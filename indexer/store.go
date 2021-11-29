@@ -586,7 +586,7 @@ func (s *Store) Reset() error {
 	return nil
 }
 
-func (s *Store) getAllPosts(posts *[]Post) error {
+func (s *Store) getAllPosts(posts *[]fullpost) error {
 	conn, err := s.pg.Acquire(context.Background())
 	if err != nil {
 		return err
@@ -594,8 +594,10 @@ func (s *Store) getAllPosts(posts *[]Post) error {
 	defer conn.Release()
 
 	if err := pgxscan.Select(context.Background(), conn, posts, `
-	SELECT id,title,url,timestamp,site,author,language,summary,tokens,tokens_h,internal_links,external_links,entities,external_site_scores
-	FROM posts
+		SELECT id,title,url,timestamp,posts.site,author,language,summary,posts.tokens,tokens_h,internal_links,external_links,entities,external_site_scores,sites.score as site_score,sites.tokens as site_tokens
+		FROM posts
+		LEFT JOIN sites
+			ON sites.site = posts.site
 	`); err != nil {
 		return err
 	}

@@ -22,10 +22,13 @@ func TestSync(t *testing.T) {
 	I = new(Indexer)
 	I.Store = &s
 
+	t.Log("Resetting index store")
 	if err := I.Store.ResetReverseIndexStore(); err != nil {
 		t.Error(err)
 	}
+	t.Log("Successfully resetted index store")
 
+	t.Log("Syncing ...")
 	if err := I.Store.Sync(); err != nil {
 		t.Error(err)
 	}
