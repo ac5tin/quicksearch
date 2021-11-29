@@ -161,11 +161,25 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 					scores = append(scores, v)
 					sum += v
 				}
-				// sort tokenscores
+				// sort tokenscores in ascending order (small to big a > b)
 				sort.Slice(scores, func(i, j int) bool {
 					return scores[i] < scores[j]
 				})
-				p.score += sum + (scores[len(scores)-2] * MATCH_MULTIPLIER * float32(len(scores)))
+
+				score1 := scores[len(scores)-2]
+
+				var diffScore float32 = 0
+
+				{
+					avg := sum / float32(len(scores))
+					var avgs float32 = 0
+					for _, s := range scores {
+						avgs += (s / avg)
+					}
+					diffScore = avgs / float32(len(scores))
+				}
+
+				p.score += (sum + (score1 * MATCH_MULTIPLIER * float32(len(scores)))) * float32(diffScore)
 			} else {
 				// since only one token, just use that token's score
 				for _, v := range p.tokenScores {
@@ -188,7 +202,7 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 	}
 
 	for _, p := range *allPosts {
-		//log.Println(p.URL, p.score) // debug (print score)
+		//log.Println(p.URL, p.baseScore, p.tokenScores, p.score) // debug (print score)
 		*t = append(*t, p.Post)
 	}
 
