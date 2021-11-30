@@ -7,7 +7,7 @@ import (
 )
 
 const MAX_PARALLEL = 10
-const MAX_RETRY = 30
+const MAX_RETRY = 5
 
 var queue []*Results = []*Results{}
 
