@@ -1,4 +1,4 @@
-package quickstore
+package indexer
 
 import "testing"
 
