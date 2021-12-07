@@ -208,6 +208,7 @@ func (ind *Indexer) QueryFullText(qry, lang *string, num, offset uint32, t *[]Po
 	//log.Println("top posts")
 	for _, p := range *allPosts {
 		// log.Println(p.ID, p.Title, p.baseScore, p.tokenScores, p.score) // debug (print score)
+		p.ID = 0
 		*t = append(*t, p.Post)
 	}
 

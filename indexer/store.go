@@ -13,7 +13,7 @@ import (
 
 // Post DB table
 type Post struct {
-	ID            uint64             `db:"id" json:"id"`
+	ID            uint64             `db:"id" json:"id,omitempty"`
 	Author        string             `db:"author" json:"author"`
 	Site          string             `db:"site" json:"site"`
 	Title         string             `db:"title" json:"title"`
