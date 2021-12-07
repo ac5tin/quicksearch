@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"runtime"
 	"sync"
 
 	"golang.org/x/sync/syncmap"
@@ -52,7 +53,10 @@ func (q *quickStore) SetData(data *[]fullpost) error {
 }
 
 func (q *quickStore) GetData(idList *[]uint64, data *[]fullpost) error {
-	max := 10
+	if len(*idList) == 0 {
+		return nil
+	}
+	max := runtime.NumCPU()
 	cwg := new(sync.WaitGroup)
 	cwg.Add(1)
 	c := make(chan fullpost, len(*idList))
