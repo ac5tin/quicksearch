@@ -35,9 +35,19 @@ func main() {
 	log.Println("> Successfully established redis connection <") // debug
 
 	// ---- initialise store
-	s := indexer.NewStore(rc, pg)
+	masterMode := os.Getenv("MASTER")
+	masterKey := os.Getenv("MASTER_KEY")
+	s := indexer.NewStore(rc, pg, masterMode == "", &masterKey)
 	indexer.I = new(indexer.Indexer)
 	indexer.I.Store = &s
+	// sync
+	{
+		log.Println("Syncing ...")
+		if err := indexer.I.Store.Sync(); err != nil {
+			panic(err)
+		}
+		log.Println("sync complete, store is ready")
+	}
 
 	// ----- process queue
 	go processor.ProcessQueue()

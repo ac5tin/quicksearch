@@ -13,7 +13,7 @@ import (
 
 // Post DB table
 type Post struct {
-	ID            uint64             `db:"id" json:"-"`
+	ID            uint64             `db:"id" json:"id"`
 	Author        string             `db:"author" json:"author"`
 	Site          string             `db:"site" json:"site"`
 	Title         string             `db:"title" json:"title"`
@@ -39,12 +39,15 @@ type fullpost struct {
 type Store struct {
 	rc *gr.Client
 	pg *pgxpool.Pool
+	qs *quickStore
 }
 
-func NewStore(rc *gr.Client, pg *pgxpool.Pool) Store {
+func NewStore(rc *gr.Client, pg *pgxpool.Pool, master bool, masterKey *string) Store {
+	slaves := new([]string)
 	return Store{
 		rc,
 		pg,
+		newQuickStore(master, slaves, masterKey),
 	}
 }
 

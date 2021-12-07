@@ -223,10 +223,10 @@ func (ind *Indexer) QueryToken(token *string, t *[]fullpost) error {
 	}
 
 	// - get all post back from postID
-	//t0 := time.Now()
-	if err := ind.Store.getPostFromPostIDs(postIds, t); err != nil {
+	// t0 := time.Now()
+	if err := ind.Store.qs.GetData(postIds, t); err != nil {
 		return err
 	}
-	//log.Printf("Query %s [%d rows] from db took %v\n", *token, len(*t), time.Since(t0))
+	// log.Printf("Query %s [%d rows] from db took %v\n", *token, len(*t), time.Since(t0))
 	return nil
 }

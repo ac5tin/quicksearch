@@ -9,15 +9,15 @@ import (
 	"golang.org/x/sync/syncmap"
 )
 
-type QuickStore struct {
+type quickStore struct {
 	master    bool
 	slaves    []string
 	masterKey string
 	data      syncmap.Map
 }
 
-func NewQuickStore(master bool, slaves *[]string, masterKey *string) *QuickStore {
-	return &QuickStore{
+func newQuickStore(master bool, slaves *[]string, masterKey *string) *quickStore {
+	return &quickStore{
 		master:    master,
 		slaves:    *slaves,
 		masterKey: *masterKey,
@@ -26,12 +26,12 @@ func NewQuickStore(master bool, slaves *[]string, masterKey *string) *QuickStore
 }
 
 // set value to store
-func (q *QuickStore) set(key *string, value *[]byte) {
+func (q *quickStore) set(key *string, value *[]byte) {
 	q.data.Store(*key, *value)
 }
 
 // get value back from store
-func (q *QuickStore) get(key *string, value *[]byte) error {
+func (q *quickStore) get(key *string, value *[]byte) error {
 	if v, ok := q.data.Load(*key); ok {
 		*value = v.([]byte)
 		return nil
@@ -39,7 +39,7 @@ func (q *QuickStore) get(key *string, value *[]byte) error {
 	return fmt.Errorf("key not found")
 }
 
-func (q *QuickStore) SetData(data *[]fullpost) error {
+func (q *quickStore) SetData(data *[]fullpost) error {
 	for _, d := range *data {
 		b, err := json.Marshal(&d)
 		if err != nil {
@@ -51,10 +51,10 @@ func (q *QuickStore) SetData(data *[]fullpost) error {
 	return nil
 }
 
-func (q *QuickStore) GetData(idList *[]uint64, data *[]fullpost) error {
+func (q *quickStore) GetData(idList *[]uint64, data *[]fullpost) error {
 	max := 10
 	cwg := new(sync.WaitGroup)
-	cwg.Add(0)
+	cwg.Add(1)
 	c := make(chan fullpost, len(*idList))
 	go func() {
 		defer cwg.Done()
@@ -67,8 +67,8 @@ func (q *QuickStore) GetData(idList *[]uint64, data *[]fullpost) error {
 		}
 	}()
 	multi := max
+	wg := new(sync.WaitGroup)
 	for _, id := range *idList {
-		wg := new(sync.WaitGroup)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -83,6 +83,7 @@ func (q *QuickStore) GetData(idList *[]uint64, data *[]fullpost) error {
 				log.Printf("error unmarshalling data from quickstore: %s", err.Error())
 				return
 			}
+			c <- *t
 		}()
 		multi--
 		if multi == 0 {

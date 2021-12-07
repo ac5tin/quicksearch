@@ -18,7 +18,9 @@ func TestSync(t *testing.T) {
 		t.Error(err)
 	}
 	rc := gr.NewRedisClient(fmt.Sprintf("%s:%s", os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT")), 0, "")
-	s := NewStore(rc, pg)
+
+	mkey := "THIS_IS_A_MASTER_KEY"
+	s := NewStore(rc, pg, true, &mkey)
 	I = new(Indexer)
 	I.Store = &s
 

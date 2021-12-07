@@ -18,10 +18,26 @@ func TestQuery(t *testing.T) {
 		t.Error(err)
 	}
 	rc := gr.NewRedisClient(fmt.Sprintf("%s:%s", os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT")), 0, "")
-	s := NewStore(rc, pg)
+
+	mkey := "THIS_IS_A_MASTER_KEY"
+	s := NewStore(rc, pg, true, &mkey)
 	I = new(Indexer)
 	I.Store = &s
 
+	// sync first
+	{
+		t.Log("Resetting index store")
+		if err := I.Store.ResetReverseIndexStore(); err != nil {
+			t.Error(err)
+		}
+		t.Log("Successfully resetted index store")
+
+		t.Log("Syncing ...")
+		if err := I.Store.Sync(); err != nil {
+			t.Error(err)
+		}
+		t.Log(" -- Sync complete -- ")
+	}
 	posts := new([]Post)
 
 	qry := "a.i data science"
@@ -49,9 +65,24 @@ func TestTokenQuery(t *testing.T) {
 		t.Error(err)
 	}
 	rc := gr.NewRedisClient(fmt.Sprintf("%s:%s", os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT")), 0, "")
-	s := NewStore(rc, pg)
+	mkey := "THIS_IS_A_MASTER_KEY"
+	s := NewStore(rc, pg, true, &mkey)
 	I = new(Indexer)
 	I.Store = &s
+	// sync first
+	{
+		t.Log("Resetting index store")
+		if err := I.Store.ResetReverseIndexStore(); err != nil {
+			t.Error(err)
+		}
+		t.Log("Successfully resetted index store")
+
+		t.Log("Syncing ...")
+		if err := I.Store.Sync(); err != nil {
+			t.Error(err)
+		}
+		t.Log(" -- Sync complete -- ")
+	}
 
 	posts := new([]fullpost)
 	token := "ai"
